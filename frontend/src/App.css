@@ -28,11 +28,14 @@
     animation: nxt-gradient-text-shift 5s ease infinite;
 }
 
-/* ── Subtle border glow rotation on cockpit focus ── */
+/* ── Spinning conic gradient border on cockpit focus ── */
 @keyframes nxt-border-spin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
 }
+
+/* ── Smooth scroll for anchor jumps ── */
+html { scroll-behavior: smooth; }
 
 /* ── Bento card entrance ── */
 @keyframes nxt-bento-in {

@@ -1,36 +1,28 @@
 /**
- * NXT1 — Landing (Phase 16 — Premium UI Rebuild)
+ * NXT1 — Landing (Phase 17 — Full premium rebuild)
  *
- * Complete redesign:
- *  • Animated orb backdrop + floating particles
- *  • "EXCLUSIVE ACCESS · MADE IN THE USA" pulse badge
- *  • Oversized hero headline (102px desktop) with rainbow "Ship it."
- *  • Stats strip (191 Agents · 52 Skills · 5+ Models · 100% Private)
- *  • Prompt cockpit with animated glow-border on focus
- *  • Bento feature grid (5 glass cards)
- *  • Infinite agent-name marquee
- *  • Prompt-to-deploy flow, demos, showcase
- *  • Full-width CTA strip before footer
- *  • Mobile-first throughout
+ * Ground-up rewrite. No imported showcase/demo/flow components (eliminated
+ * duplicates). Every section scroll-reveals with spring easing. Stats count
+ * up on enter. Prompt cockpit is deep dark AI terminal. Header is glassmorphic
+ * on scroll. Infinite agent marquee. US flag in footer.
  */
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import PublicFooter from "@/components/PublicFooter";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight, Sparkles, Layers, Globe, Smartphone, Puzzle,
-  Cpu, Zap, Eye, Shield, Lock,
+  Zap, Lock, Eye, Cpu, ChevronRight, Menu, X,
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import GradientBackdrop from "@/components/GradientBackdrop";
 import ModelPickerCockpit from "@/components/premium/ModelPickerCockpit";
-import LandingShowcase from "@/components/landing/LandingShowcase";
-import HomepageDemos from "@/components/landing/HomepageDemos";
-import PromptToDeployFlow from "@/components/landing/PromptToDeployFlow";
+import { ProviderLogo } from "@/components/premium/ProviderLogos";
 import ThemeSwitcher from "@/components/theme/ThemeSwitcher";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { isAuthenticated } from "@/lib/auth";
 
-/* ─────────────────────────── Data ─────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════════════ */
 
 const MODES = [
   { key: "fullstack", label: "Full Stack", icon: Layers     },
@@ -51,7 +43,7 @@ const MODE_SUGGESTIONS = {
     { label: "Docs site",        prompt: "Build a modern documentation site with sidebar nav and code samples." },
   ],
   mobile: [
-    { label: "Fitness app",      prompt: "Build a mobile fitness app with workout tracking and progress charts." },
+    { label: "Fitness tracker",  prompt: "Build a mobile fitness app with workout tracking and progress charts." },
     { label: "AI chat app",      prompt: "Build a mobile AI chat companion with streaming responses." },
     { label: "Social app",       prompt: "Build a mobile social app with feed, profiles, and messaging." },
   ],
@@ -71,475 +63,430 @@ const PLACEHOLDER_CYCLE = [
   "Build an internal admin for a small team…",
 ];
 
-const STATS = [
-  { n: "191",  label: "AI Agents"  },
-  { n: "52",   label: "Skills"     },
-  { n: "5+",   label: "AI Models"  },
-  { n: "100%", label: "Private"    },
-];
-
 const ALL_AGENTS = [
   "backend-architect", "security-auditor", "frontend-developer", "test-automator",
   "devops-troubleshooter", "code-reviewer", "product-manager", "ui-designer",
   "data-analyst", "api-builder", "cloud-architect", "ml-engineer",
-  "performance-optimizer", "documentation-writer", "database-admin",
+  "performance-optimizer", "docs-writer", "database-admin",
   "github", "notion", "imessage", "whisper", "apple-notes",
   "stripe-integrator", "auth-builder", "websocket-expert", "mobile-developer",
 ];
 
-const BENTO_AGENTS = ALL_AGENTS.slice(0, 12);
-
 const SHIP_ITEMS = [
-  { label: "MVPs",              icon: Zap      },
-  { label: "Full-stack apps",   icon: Layers   },
-  { label: "Marketing sites",   icon: Globe    },
-  { label: "Dashboards",        icon: Cpu      },
-  { label: "Internal tools",    icon: Shield   },
-  { label: "Mobile apps",       icon: Smartphone },
-  { label: "AI workflows",      icon: Sparkles },
-  { label: "Custom software",   icon: Eye      },
+  { label: "MVPs",             icon: Zap,         color: "#5EEAD4" },
+  { label: "SaaS Platforms",   icon: Layers,      color: "#6366F1" },
+  { label: "Marketing Sites",  icon: Globe,       color: "#F59E0B" },
+  { label: "AI Dashboards",    icon: Cpu,         color: "#EC4899" },
+  { label: "Internal Tools",   icon: Lock,        color: "#34D399" },
+  { label: "Mobile Apps",      icon: Smartphone,  color: "#60A5FA" },
+  { label: "AI Workflows",     icon: Sparkles,    color: "#A78BFA" },
+  { label: "Custom Software",  icon: Eye,         color: "#FB923C" },
 ];
 
-/* ─────────────────────────── Hooks ─────────────────────────── */
+const PROVIDERS = [
+  { key: "anthropic", label: "Claude",   tile: "#FAF9F5", invert: false },
+  { key: "openai",    label: "GPT-4",    tile: "#202021", invert: true  },
+  { key: "gemini",    label: "Gemini",   tile: "#FFFFFF", invert: false },
+  { key: "grok",      label: "Grok",     tile: "#0F0F10", invert: true  },
+  { key: "deepseek",  label: "DeepSeek", tile: "#FFFFFF", invert: false },
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   HOOKS
+═══════════════════════════════════════════════════════════════ */
 
 function useTypedPlaceholder(cycle, { isPaused }) {
   const [text, setText] = useState("");
-  const stateRef = useRef({ i: 0, phase: "typing", cursor: 0 });
-
+  const s = useRef({ i: 0, phase: "typing", cursor: 0 });
   useEffect(() => {
     if (isPaused) return;
-    let mounted = true;
+    let alive = true;
     const tick = () => {
-      if (!mounted) return;
-      const s = stateRef.current;
-      const target = cycle[s.i % cycle.length];
-      if (s.phase === "typing") {
-        if (s.cursor < target.length) {
-          s.cursor += 1;
-          setText(target.slice(0, s.cursor));
-          timer = setTimeout(tick, 28 + Math.random() * 30);
-        } else {
-          s.phase = "hold";
-          timer = setTimeout(tick, 1700);
-        }
-      } else if (s.phase === "hold") {
-        s.phase = "erasing";
-        timer = setTimeout(tick, 20);
-      } else if (s.phase === "erasing") {
-        if (s.cursor > 0) {
-          s.cursor -= 1;
-          setText(target.slice(0, s.cursor));
-          timer = setTimeout(tick, 14);
-        } else {
-          s.i += 1;
-          s.phase = "typing";
-          timer = setTimeout(tick, 220);
-        }
+      if (!alive) return;
+      const st = s.current;
+      const tgt = cycle[st.i % cycle.length];
+      if (st.phase === "typing") {
+        if (st.cursor < tgt.length) { st.cursor++; setText(tgt.slice(0, st.cursor)); timer = setTimeout(tick, 26 + Math.random() * 28); }
+        else { st.phase = "hold"; timer = setTimeout(tick, 1800); }
+      } else if (st.phase === "hold") {
+        st.phase = "erasing"; timer = setTimeout(tick, 20);
+      } else {
+        if (st.cursor > 0) { st.cursor--; setText(tgt.slice(0, st.cursor)); timer = setTimeout(tick, 13); }
+        else { st.i++; st.phase = "typing"; timer = setTimeout(tick, 240); }
       }
     };
-    let timer = setTimeout(tick, 600);
-    return () => { mounted = false; clearTimeout(timer); };
+    let timer = setTimeout(tick, 700);
+    return () => { alive = false; clearTimeout(timer); };
   }, [cycle, isPaused]);
-
   return text;
 }
 
-/* ─────────────────────────── Sub-components ─────────────────────────── */
+function useReveal(threshold = 0.12) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold }
+    );
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return [ref, visible];
+}
 
-const PARTICLES = [
-  { size: 3, x: "12%",  y: "22%", delay: "0s",   dur: "8s"  },
-  { size: 2, x: "82%",  y: "14%", delay: "2.3s", dur: "10s" },
-  { size: 4, x: "65%",  y: "68%", delay: "4.1s", dur: "7s"  },
-  { size: 2, x: "38%",  y: "54%", delay: "1.2s", dur: "9s"  },
-  { size: 3, x: "91%",  y: "42%", delay: "3.5s", dur: "11s" },
-  { size: 2, x: "22%",  y: "78%", delay: "5.2s", dur: "8s"  },
-  { size: 3, x: "55%",  y: "32%", delay: "0.8s", dur: "12s" },
-  { size: 2, x: "73%",  y: "85%", delay: "6.1s", dur: "9s"  },
+function useCounter(target, duration = 1400, active) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let cur = 0;
+    const step = target / (duration / 16);
+    const t = setInterval(() => {
+      cur = Math.min(cur + step, target);
+      setVal(Math.floor(cur));
+      if (cur >= target) clearInterval(t);
+    }, 16);
+    return () => clearInterval(t);
+  }, [target, duration, active]);
+  return val;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SMALL COMPONENTS
+═══════════════════════════════════════════════════════════════ */
+
+const spring = "cubic-bezier(0.16,1,0.3,1)";
+
+function Reveal({ children, delay = 0, from = "bottom", className = "", style = {} }) {
+  const [ref, visible] = useReveal();
+  const transforms = {
+    bottom: "translateY(36px)",
+    left:   "translateX(-36px)",
+    right:  "translateX(36px)",
+    scale:  "scale(0.94) translateY(20px)",
+  };
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity:    visible ? 1 : 0,
+        transform:  visible ? "none" : transforms[from],
+        transition: `opacity 0.75s ${spring} ${delay}ms, transform 0.75s ${spring} ${delay}ms`,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+const PARTICLE_DATA = [
+  { size: 3, x: "10%",  y: "18%", d: "0s",   t: "9s"  },
+  { size: 2, x: "84%",  y: "12%", d: "2.1s", t: "11s" },
+  { size: 4, x: "62%",  y: "72%", d: "4.3s", t: "8s"  },
+  { size: 2, x: "35%",  y: "56%", d: "1.0s", t: "10s" },
+  { size: 3, x: "92%",  y: "44%", d: "3.7s", t: "12s" },
+  { size: 2, x: "21%",  y: "80%", d: "5.4s", t: "9s"  },
+  { size: 3, x: "57%",  y: "28%", d: "0.6s", t: "13s" },
+  { size: 2, x: "75%",  y: "88%", d: "6.2s", t: "10s" },
 ];
 
 function FloatingParticles({ isLight }) {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden>
-      {PARTICLES.map((p, i) => (
-        <div
-          key={i}
-          className="absolute rounded-full"
-          style={{
-            width: p.size,
-            height: p.size,
-            left: p.x,
-            top: p.y,
-            background: isLight ? "rgba(20,130,110,0.55)" : "rgba(94,234,212,0.65)",
-            boxShadow: isLight
-              ? `0 0 ${p.size * 4}px rgba(20,130,110,0.45)`
-              : `0 0 ${p.size * 4}px rgba(94,234,212,0.55)`,
-            animation: `nxt-particle-float ${p.dur} ease-in-out ${p.delay} infinite`,
-          }}
-        />
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+      {PARTICLE_DATA.map((p, i) => (
+        <div key={i} className="absolute rounded-full" style={{
+          width: p.size, height: p.size, left: p.x, top: p.y,
+          background: isLight ? "rgba(20,130,110,0.6)" : "rgba(94,234,212,0.7)",
+          boxShadow: isLight ? `0 0 ${p.size*5}px rgba(20,130,110,0.5)` : `0 0 ${p.size*5}px rgba(94,234,212,0.6)`,
+          animation: `nxt-particle-float ${p.t} ease-in-out ${p.d} infinite`,
+        }} />
       ))}
     </div>
   );
 }
 
-function AgentMarquee({ isLight }) {
-  const doubled = [...ALL_AGENTS, ...ALL_AGENTS];
-  const dotColors = ["#5EEAD4", "#6366F1", "#F59E0B", "#EC4899"];
+function USFlag() {
   return (
-    <section className="relative overflow-hidden py-8 sm:py-12" aria-hidden>
-      <div
-        className="absolute inset-y-0 left-0 w-20 sm:w-32 z-10 pointer-events-none"
-        style={{ background: `linear-gradient(90deg, var(--nxt-bg) 0%, transparent 100%)` }}
-      />
-      <div
-        className="absolute inset-y-0 right-0 w-20 sm:w-32 z-10 pointer-events-none"
-        style={{ background: `linear-gradient(270deg, var(--nxt-bg) 0%, transparent 100%)` }}
-      />
-      <div className="flex gap-2.5 nxt-marquee" style={{ width: "max-content" }}>
-        {doubled.map((name, i) => (
-          <div
-            key={i}
-            className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full font-mono text-[11px] sm:text-[11.5px] tracking-tight"
-            style={{
-              background: "var(--nxt-surface-soft)",
-              border: "1px solid var(--nxt-border-soft)",
-              color: "var(--nxt-fg-dim)",
-            }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ background: dotColors[i % dotColors.length] }}
-            />
-            {name}
-          </div>
-        ))}
-      </div>
-    </section>
+    <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden style={{ borderRadius: 2, display: "inline-block", flexShrink: 0 }}>
+      <rect width="18" height="12" fill="#B22234" />
+      <rect y="1.7"  width="18" height="1.7" fill="#fff" />
+      <rect y="5.1"  width="18" height="1.7" fill="#fff" />
+      <rect y="8.5"  width="18" height="1.7" fill="#fff" />
+      <rect width="7.4" height="6.8" fill="#3C3B6E" />
+      <circle cx="1.8" cy="1.7" r="0.4" fill="#fff" />
+      <circle cx="3.6" cy="1.7" r="0.4" fill="#fff" />
+      <circle cx="5.4" cy="1.7" r="0.4" fill="#fff" />
+      <circle cx="2.7" cy="3.4" r="0.4" fill="#fff" />
+      <circle cx="4.5" cy="3.4" r="0.4" fill="#fff" />
+      <circle cx="1.8" cy="5.1" r="0.4" fill="#fff" />
+      <circle cx="3.6" cy="5.1" r="0.4" fill="#fff" />
+      <circle cx="5.4" cy="5.1" r="0.4" fill="#fff" />
+    </svg>
   );
 }
 
-/* ─────────────────────────── Main page ─────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   MAIN PAGE
+═══════════════════════════════════════════════════════════════ */
 
 export default function LandingPage() {
   const navigate  = useNavigate();
   const { theme } = useTheme();
   const isLight   = theme === "light";
+
   const [authed,    setAuthed]    = useState(false);
   const [draft,     setDraft]     = useState("");
   const [mode,      setMode]      = useState("fullstack");
   const [provider,  setProvider]  = useState("anthropic");
-  const [isFocused, setIsFocused] = useState(false);
+  const [scrolled,  setScrolled]  = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const textareaRef = useRef(null);
 
   const placeholder = useTypedPlaceholder(PLACEHOLDER_CYCLE, { isPaused: !!draft });
 
   useEffect(() => {
     setAuthed(isAuthenticated());
-    try {
-      const saved = window.localStorage.getItem("nxt1_draft_prompt") || "";
-      if (saved) setDraft(saved);
-    } catch { /* ignore */ }
-    setTimeout(() => textareaRef.current?.focus(), 80);
+    try { const s = localStorage.getItem("nxt1_draft_prompt"); if (s) setDraft(s); } catch {}
+    setTimeout(() => textareaRef.current?.focus(), 100);
+    const onScroll = () => setScrolled(window.scrollY > 30);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const onDraftChange = (val) => {
-    setDraft(val);
-    try { window.localStorage.setItem("nxt1_draft_prompt", val); } catch { /**/ }
+  const onDraftChange = (v) => {
+    setDraft(v);
+    try { localStorage.setItem("nxt1_draft_prompt", v); } catch {}
   };
 
-  const onBuild = () => {
-    const v = (draft || "").trim();
+  const onBuild = useCallback(() => {
+    const v = draft.trim();
     if (!v) { textareaRef.current?.focus(); return; }
-    try { window.localStorage.setItem("nxt1_draft_prompt", v); } catch { /**/ }
-    const target = authed ? "/workspace" : "/signup";
-    navigate(`${target}?prompt=${encodeURIComponent(v)}&mode=${mode}&return=/dashboard`);
-  };
+    try { localStorage.setItem("nxt1_draft_prompt", v); } catch {}
+    navigate(`${authed ? "/workspace" : "/signup"}?prompt=${encodeURIComponent(v)}&mode=${mode}&return=/dashboard`);
+  }, [draft, mode, authed, navigate]);
 
-  /* ─── gradient helpers ─── */
-  const rainbowGrad = isLight
-    ? "linear-gradient(110deg, #0E8C73 0%, #B58320 50%, #C25A1F 100%)"
-    : "linear-gradient(110deg, #5EEAD4 0%, #F0D28A 50%, #FF8A3D 100%)";
+  const rainbow = isLight
+    ? "linear-gradient(110deg,#0E8C73 0%,#B58320 50%,#C25A1F 100%)"
+    : "linear-gradient(110deg,#5EEAD4 0%,#F0D28A 50%,#FF8A3D 100%)";
 
-  const headingFadeGrad = isLight
-    ? "linear-gradient(180deg, #1A1A1F 0%, #6A6259 100%)"
-    : "linear-gradient(180deg, #E8E8EE 0%, #8A8A93 100%)";
+  const fadedHead = isLight
+    ? "linear-gradient(180deg,#1A1A1F 0%,#6A6259 100%)"
+    : "linear-gradient(180deg,#FFFFFF 0%,#9A9AA3 100%)";
+
+  /* stats reveal */
+  const [statsRef, statsVisible] = useReveal(0.3);
+  const agentCount  = useCounter(200, 1200, statsVisible);
+  const skillCount  = useCounter(52,  1000, statsVisible);
+  const modelCount  = useCounter(5,   600,  statsVisible);
 
   return (
-    <div
-      className="relative min-h-screen w-full overflow-hidden"
-      style={{ fontFamily: "'Inter', sans-serif", color: "var(--nxt-fg)" }}
-      data-testid="landing-page"
-    >
+    <div className="relative min-h-screen w-full overflow-x-hidden" style={{ fontFamily: "'Inter',sans-serif", color: "var(--nxt-fg)" }} data-testid="landing-page">
       <GradientBackdrop variant="cinema" intensity="soft" />
       <FloatingParticles isLight={isLight} />
 
-      {/* ══════════════════════════════════════════════════
-          HEADER
-      ══════════════════════════════════════════════════ */}
+      {/* ════════════════════════════════════════════
+          HEADER — glassmorphic on scroll
+      ════════════════════════════════════════════ */}
       <header
-        className="relative z-20 px-5 sm:px-10 pt-5 sm:pt-6 flex items-center justify-between"
+        className="fixed top-0 inset-x-0 z-50 transition-all duration-300"
         style={{
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
+          background: scrolled
+            ? isLight ? "rgba(239,233,218,0.82)" : "rgba(27,27,33,0.82)"
+            : "transparent",
+          backdropFilter:       scrolled ? "blur(20px) saturate(160%)" : "none",
+          WebkitBackdropFilter: scrolled ? "blur(20px) saturate(160%)" : "none",
+          borderBottom: scrolled ? `1px solid var(--nxt-border-soft)` : "1px solid transparent",
         }}
       >
-        <Brand size="md" gradient />
+        <div className="mx-auto max-w-[1120px] px-5 sm:px-8 h-[62px] flex items-center justify-between gap-4">
+          <Brand size="md" gradient />
 
-        <nav className="hidden md:flex items-center gap-0.5" data-testid="landing-section-nav">
-          {[
-            { id: "flow",     label: "How it works" },
-            { id: "features", label: "Demos"         },
-            { id: "ship",     label: "What you ship" },
-            { id: "agents",   label: "Agents"        },
-            { id: "showcase", label: "Models"        },
-          ].map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className="text-[12.5px] tracking-tight px-3 py-2 rounded-full transition-all hover:opacity-100"
-              style={{ color: "var(--nxt-fg-dim)" }}
-              data-testid={`landing-nav-${s.id}`}
-            >
-              {s.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <ThemeSwitcher />
-          {authed ? (
-            <button
-              onClick={() => navigate("/workspace")}
-              className="text-[13px] tracking-tight font-medium px-3 py-2 rounded-full transition-colors"
-              style={{ color: "var(--nxt-fg)" }}
-              data-testid="nav-dashboard-button"
-            >
-              Open workspace <ArrowRight size={13} className="inline ml-1" />
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => navigate("/signin")}
-                className="text-[13px] tracking-tight px-3 py-2 transition-colors hover:opacity-100"
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-1" data-testid="landing-section-nav">
+            {[
+              ["#how",    "How it works"],
+              ["#agents", "Agents"],
+              ["#models", "Models"],
+              ["#ship",   "Ship"],
+            ].map(([href, label]) => (
+              <a key={href} href={href}
+                className="text-[13px] px-3 py-1.5 rounded-full transition-colors"
                 style={{ color: "var(--nxt-fg-dim)" }}
-                data-testid="nav-signin-button"
+              >{label}</a>
+            ))}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-1.5">
+            <ThemeSwitcher />
+            {authed ? (
+              <button onClick={() => navigate("/workspace")}
+                className="hidden sm:inline-flex items-center gap-1.5 text-[13px] font-medium px-3.5 py-2 rounded-full transition-all hover:-translate-y-0.5"
+                style={{ color: "var(--nxt-fg)" }}
+                data-testid="nav-dashboard-button"
               >
-                Sign in
+                Open workspace <ArrowRight size={12} />
               </button>
-              <button
-                onClick={() => navigate("/signup")}
-                className="text-[13px] tracking-tight font-semibold px-4 py-2 rounded-full transition-all hover:-translate-y-0.5"
-                style={
-                  isLight
-                    ? { background: "#1F1F23", color: "#FAFAFA", border: "1px solid rgba(26,26,31,0.18)", boxShadow: "0 6px 16px -8px rgba(31,31,35,0.35)" }
-                    : { background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)", border: "1px solid rgba(255,255,255,0.12)", color: "#FAFAFA" }
-                }
-                data-testid="nav-signup-button"
-              >
-                Request access
-              </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button onClick={() => navigate("/signin")}
+                  className="hidden sm:block text-[13px] px-3 py-2 transition-colors"
+                  style={{ color: "var(--nxt-fg-dim)" }}
+                  data-testid="nav-signin-button"
+                >Sign in</button>
+                <button onClick={() => navigate("/signup")}
+                  className="text-[13px] font-semibold px-4 py-2 rounded-full transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                  style={isLight
+                    ? { background:"#1F1F23", color:"#FAFAFA", boxShadow:"0 4px 14px -6px rgba(31,31,35,0.40)" }
+                    : { background:"rgba(255,255,255,0.10)", border:"1px solid rgba(255,255,255,0.14)", color:"#FAFAFA" }}
+                  data-testid="nav-signup-button"
+                >Request access</button>
+              </>
+            )}
+            {/* Mobile menu toggle */}
+            <button className="md:hidden ml-1 p-2 rounded-lg" onClick={() => setMobileNav(v => !v)}
+              style={{ color: "var(--nxt-fg-dim)" }}>
+              {mobileNav ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile nav dropdown */}
+        {mobileNav && (
+          <div className="md:hidden px-5 pb-4 pt-2 flex flex-col gap-1"
+            style={{ background: isLight ? "rgba(239,233,218,0.97)" : "rgba(22,22,28,0.97)", borderBottom: "1px solid var(--nxt-border-soft)" }}>
+            {[["#how","How it works"],["#agents","Agents"],["#models","Models"],["#ship","What you ship"]].map(([h,l]) => (
+              <a key={h} href={h} onClick={() => setMobileNav(false)}
+                className="px-3 py-2.5 rounded-xl text-[14px]"
+                style={{ color: "var(--nxt-fg-dim)" }}>{l}</a>
+            ))}
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => navigate("/signin")} className="flex-1 py-2.5 rounded-xl text-[13px] text-center" style={{ color:"var(--nxt-fg-dim)", border:"1px solid var(--nxt-border)" }}>Sign in</button>
+              <button onClick={() => navigate("/signup")} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-center" style={{ background:"#1F1F23", color:"#FAFAFA" }}>Request access</button>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* ══════════════════════════════════════════════════
+      {/* ════════════════════════════════════════════
           HERO
-      ══════════════════════════════════════════════════ */}
-      <main className="relative z-10 mx-auto max-w-[960px] px-5 sm:px-6 pt-[7vh] sm:pt-[9vh] pb-12 sm:pb-20">
+      ════════════════════════════════════════════ */}
+      <main className="relative z-10 pt-[108px] sm:pt-[120px] pb-20 px-5 sm:px-8 mx-auto max-w-[880px]">
 
         {/* Exclusive badge */}
-        <div className="flex justify-center mb-7 sm:mb-8 nxt-fade-up" style={{ animationDelay: "0ms" }}>
-          <div
-            className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full"
+        <div className="flex justify-center mb-7">
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full"
             style={{
-              background: isLight ? "rgba(20,130,110,0.08)" : "rgba(94,234,212,0.06)",
-              border: `1px solid ${isLight ? "rgba(20,130,110,0.22)" : "rgba(94,234,212,0.18)"}`,
-            }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full nxt-pulse flex-shrink-0"
-              style={{ background: "#34D399" }}
-            />
-            <span
-              className="mono text-[9.5px] sm:text-[10.5px] tracking-[0.38em] uppercase font-medium"
-              style={{ color: isLight ? "#0E8C73" : "#5EEAD4" }}
-            >
+              background: isLight ? "rgba(20,130,110,0.07)" : "rgba(94,234,212,0.06)",
+              border: `1px solid ${isLight ? "rgba(20,130,110,0.20)" : "rgba(94,234,212,0.16)"}`,
+            }}>
+            <span className="w-1.5 h-1.5 rounded-full nxt-pulse flex-shrink-0" style={{ background:"#34D399" }} />
+            <span className="mono text-[9.5px] sm:text-[10.5px] tracking-[0.40em] uppercase font-medium"
+              style={{ color: isLight ? "#0E8C73" : "#5EEAD4" }}>
               Exclusive Access · Made in the USA
             </span>
           </div>
         </div>
 
-        {/* Giant headline */}
+        {/* Headline */}
         <h1
-          className="text-[52px] sm:text-[80px] lg:text-[102px] leading-[0.93] tracking-[-0.04em] font-bold text-center mb-4 sm:mb-5 nxt-fade-up"
-          style={{ fontFamily: "'Cabinet Grotesk', sans-serif", animationDelay: "60ms" }}
+          className="text-[54px] sm:text-[82px] lg:text-[104px] font-black leading-[0.91] tracking-[-0.045em] text-center mb-4 sm:mb-5"
+          style={{ fontFamily:"'Cabinet Grotesk',sans-serif" }}
         >
-          <span className="block" style={{ color: "var(--nxt-fg)" }}>
-            Build software.
-          </span>
-          <span
-            className="block"
-            style={{
-              background: rainbowGrad,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
+          <span className="block" style={{ color:"var(--nxt-fg)" }}>Build software.</span>
+          <span className="block" style={{ background: rainbow, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
             Ship it.
           </span>
         </h1>
 
-        {/* Discover · Develop · Deliver */}
-        <div
-          className="flex items-center justify-center gap-3 sm:gap-4 mb-5 sm:mb-6 nxt-fade-up"
-          style={{ animationDelay: "120ms" }}
-          data-testid="brand-triplet"
-        >
-          <span
-            className="h-px w-10 sm:w-16"
-            style={{ background: "var(--nxt-border-strong)" }}
-          />
-          <span
-            className="mono text-[10px] sm:text-[11px] tracking-[0.44em] uppercase font-semibold bg-clip-text text-transparent"
-            style={{ backgroundImage: rainbowGrad }}
-          >
+        {/* Tagline */}
+        <div className="flex items-center justify-center gap-3 sm:gap-5 mb-5" data-testid="brand-triplet">
+          <span className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background:"var(--nxt-border-strong)" }} />
+          <span className="mono text-[10px] sm:text-[11px] tracking-[0.44em] uppercase font-semibold bg-clip-text text-transparent whitespace-nowrap"
+            style={{ backgroundImage: rainbow }}>
             DISCOVER · DEVELOP · DELIVER
           </span>
-          <span
-            className="h-px w-10 sm:w-16"
-            style={{ background: "var(--nxt-border-strong)" }}
-          />
+          <span className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background:"var(--nxt-border-strong)" }} />
         </div>
 
         {/* Subtitle */}
-        <p
-          className="text-center text-[14px] sm:text-[16px] max-w-[540px] mx-auto mb-7 sm:mb-9 leading-relaxed nxt-fade-up"
-          style={{ color: "var(--nxt-fg-dim)", animationDelay: "180ms" }}
-        >
-          A private AI platform for founders. Describe your vision
-          and watch it become real software — ready to ship, no engineering team required.
+        <p className="text-center text-[14.5px] sm:text-[16.5px] max-w-[520px] mx-auto mb-10 sm:mb-12 leading-relaxed"
+          style={{ color:"var(--nxt-fg-dim)" }}>
+          The private AI platform for founders. Describe what you want to build — and watch it become real, shippable software.
         </p>
 
-        {/* Stats strip */}
-        <div
-          className="flex items-center justify-center gap-5 sm:gap-8 md:gap-14 mb-10 sm:mb-12 flex-wrap nxt-fade-up"
-          style={{ animationDelay: "240ms" }}
-        >
-          {STATS.map(({ n, label }) => (
-            <div key={label} className="text-center">
-              <div
-                className="text-[24px] sm:text-[30px] font-black tracking-tight leading-none mb-1"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-              >
-                {n}
-              </div>
-              <div
-                className="mono text-[9px] sm:text-[9.5px] tracking-[0.28em] uppercase"
-                style={{ color: "var(--nxt-fg-faint)" }}
-              >
-                {label}
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* ── PROMPT COCKPIT ── */}
+        <div className="relative group mx-auto max-w-[800px]" data-testid="landing-prompt-cockpit">
 
-        {/* ── Prompt cockpit ── */}
-        <div
-          className="mx-auto max-w-[780px] relative group nxt-fade-up"
-          style={{ animationDelay: "300ms" }}
-          data-testid="landing-prompt-cockpit"
-        >
-          {/* Animated gradient glow ring that appears on focus */}
-          <div
-            aria-hidden
-            className="absolute -inset-[1.5px] rounded-[30px] opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none"
-            style={{
-              background: isLight
-                ? "linear-gradient(135deg, rgba(20,130,110,0.8), rgba(181,131,32,0.6), rgba(194,90,31,0.7))"
-                : "linear-gradient(135deg, rgba(94,234,212,0.7), rgba(99,102,241,0.6), rgba(245,158,11,0.55))",
-              borderRadius: 30,
-            }}
-          />
+          {/* Rotating gradient glow ring (visible on focus) */}
+          <div aria-hidden className="absolute -inset-[2px] rounded-[30px] opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 rounded-[30px]"
+              style={{
+                background: "conic-gradient(from 0deg, #5EEAD4, #6366F1, #F59E0B, #EC4899, #5EEAD4)",
+                animation: "nxt-border-spin 3s linear infinite",
+              }} />
+            <div className="absolute inset-[2px] rounded-[28px]" style={{ background:"#1F1F23" }} />
+          </div>
 
-          {/* Ambient glow behind */}
-          <div
-            aria-hidden
-            className="absolute -inset-x-10 -inset-y-8 rounded-[50px] blur-3xl opacity-40 group-focus-within:opacity-85 transition-opacity duration-700 pointer-events-none"
+          {/* Ambient glow cloud */}
+          <div aria-hidden className="absolute -inset-x-16 -inset-y-10 blur-3xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-700 pointer-events-none"
             style={{
-              background: isLight
-                ? "radial-gradient(65% 65% at 50% 100%, rgba(20,130,110,0.22) 0%, transparent 70%)"
-                : "radial-gradient(65% 65% at 50% 100%, rgba(94,234,212,0.22) 0%, transparent 70%), radial-gradient(60% 60% at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%)",
-            }}
-          />
+              background: "radial-gradient(70% 70% at 50% 100%,rgba(94,234,212,0.22) 0%,transparent 70%),radial-gradient(50% 50% at 50% 0%,rgba(99,102,241,0.14) 0%,transparent 70%)",
+            }} />
 
-          {/* Cockpit body — always dark graphite */}
-          <div
-            className="relative rounded-[28px] transition-all duration-300"
+          {/* Main panel */}
+          <div className="relative rounded-[28px] overflow-hidden"
             style={{
-              background: "linear-gradient(180deg, #303038 0%, #1F1F23 100%)",
-              border: isLight
-                ? "1px solid rgba(26,26,31,0.10)"
-                : "1px solid rgba(255,255,255,0.10)",
-              boxShadow: isLight
-                ? "0 28px 60px -22px rgba(40,30,15,0.30), 0 8px 22px -10px rgba(40,30,15,0.18), inset 0 1px 0 rgba(255,255,255,0.04)"
-                : "0 28px 60px -22px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)",
+              background: "linear-gradient(180deg,#2A2A32 0%,#1A1A20 100%)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              boxShadow: "0 40px 80px -30px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 1px 0 rgba(255,255,255,0.08) inset",
             }}
           >
+            {/* Top bar — live indicator */}
+            <div className="flex items-center justify-between px-5 pt-3.5 pb-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 nxt-pulse" />
+                <span className="mono text-[10px] tracking-[0.28em] uppercase text-white/35">NXT1 Builder</span>
+              </div>
+              <span className="mono text-[10px] tracking-[0.22em] uppercase text-white/25">AI Ready</span>
+            </div>
+
+            {/* Textarea */}
             <textarea
               ref={textareaRef}
-              rows={3}
+              rows={4}
               value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  onBuild();
-                }
-              }}
-              placeholder={placeholder ? `${placeholder}` : "Describe what you want to build…"}
-              className="w-full bg-transparent outline-none resize-none text-[16px] sm:text-[17px] leading-[1.55] tracking-[-0.005em] px-6 pt-5 pb-3 placeholder:text-white/30 text-white"
+              onChange={e => onDraftChange(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onBuild(); } }}
+              placeholder={placeholder || "Describe what you want to build…"}
+              className="w-full bg-transparent outline-none resize-none leading-[1.6] tracking-[-0.005em] px-5 pt-3 pb-2 placeholder:text-white/25 text-white"
               data-testid="landing-prompt-input"
               style={{ fontSize: "16px" }}
             />
 
+            {/* Divider */}
+            <div className="mx-5" style={{ height:1, background:"rgba(255,255,255,0.06)" }} />
+
             {/* Mode tabs */}
-            <div className="px-3 sm:px-4 pt-1 pb-2">
-              <div className="grid grid-cols-4 gap-1.5 sm:gap-2" role="tablist" aria-label="Build type">
-                {MODES.map((m) => {
-                  const Icon = m.icon || Sparkles;
+            <div className="px-3 py-2.5">
+              <div className="grid grid-cols-4 gap-1.5" role="tablist">
+                {MODES.map(m => {
+                  const Icon = m.icon;
                   const active = mode === m.key;
                   return (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => setMode(m.key)}
+                    <button key={m.key} type="button" onClick={() => setMode(m.key)}
+                      role="tab" aria-selected={active}
                       data-testid={`landing-mode-${m.key}`}
-                      role="tab"
-                      aria-selected={active}
-                      className="relative flex flex-col items-center justify-center gap-1.5 px-1 py-2.5 rounded-2xl transition-all duration-200"
-                      style={
-                        active
-                          ? {
-                              background: "linear-gradient(180deg, rgba(94,234,212,0.18) 0%, rgba(94,234,212,0.05) 100%)",
-                              boxShadow: "inset 0 0 0 1px rgba(94,234,212,0.35), 0 8px 24px -10px rgba(94,234,212,0.30)",
-                              color: "#FFFFFF",
-                            }
-                          : {
-                              background: "rgba(255,255,255,0.025)",
-                              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
-                              color: "rgba(255,255,255,0.65)",
-                            }
-                      }
+                      className="flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-2xl transition-all duration-200"
+                      style={active
+                        ? { background:"linear-gradient(180deg,rgba(94,234,212,0.20) 0%,rgba(94,234,212,0.06) 100%)", boxShadow:"inset 0 0 0 1px rgba(94,234,212,0.38),0 6px 18px -8px rgba(94,234,212,0.35)" }
+                        : { background:"rgba(255,255,255,0.03)", boxShadow:"inset 0 0 0 1px rgba(255,255,255,0.06)" }}
                     >
-                      <Icon
-                        size={15}
-                        strokeWidth={1.7}
-                        style={{ color: active ? "#5EEAD4" : "rgba(255,255,255,0.65)" }}
-                      />
-                      <span className="text-[11px] sm:text-[12px] font-medium tracking-tight whitespace-nowrap">
+                      <Icon size={14} strokeWidth={1.8} style={{ color: active ? "#5EEAD4" : "rgba(255,255,255,0.55)" }} />
+                      <span className="text-[10.5px] sm:text-[11.5px] font-medium tracking-tight whitespace-nowrap"
+                        style={{ color: active ? "#fff" : "rgba(255,255,255,0.55)" }}>
                         {m.label}
                       </span>
                     </button>
@@ -549,20 +496,17 @@ export default function LandingPage() {
             </div>
 
             {/* Action row */}
-            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 pb-3 pt-1">
+            <div className="flex items-center gap-2 px-3 pb-3.5">
               <div className="flex-1 min-w-0">
-                <ModelPickerCockpit
-                  value={provider}
-                  onChange={setProvider}
-                  providers={{ emergent: true, anthropic: true }}
-                  compact
-                />
+                <ModelPickerCockpit value={provider} onChange={setProvider} providers={{ emergent:true, anthropic:true }} compact />
               </div>
-              <button
-                type="button"
-                onClick={onBuild}
-                disabled={!draft.trim()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-semibold tracking-tight bg-white text-[#1F1F23] hover:bg-white/95 transition-all duration-200 shadow-[0_8px_28px_-10px_rgba(255,255,255,0.55)] hover:shadow-[0_14px_42px_-10px_rgba(255,255,255,0.75)] hover:-translate-y-0.5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-none shrink-0"
+              <button type="button" onClick={onBuild} disabled={!draft.trim()}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[13.5px] font-bold tracking-tight shrink-0 transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                style={{
+                  background:"linear-gradient(135deg,#FAFAFA 0%,#D8D8D8 100%)",
+                  color:"#0A0A0F",
+                  boxShadow:"0 8px 24px -8px rgba(255,255,255,0.50),inset 0 1px 0 rgba(255,255,255,0.70)",
+                }}
                 data-testid="landing-build-button"
               >
                 <Sparkles size={13} />
@@ -571,36 +515,21 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Keyboard hint */}
-          <p
-            className="mt-4 text-center mono text-[10px] tracking-[0.24em] uppercase"
-            style={{ color: "var(--nxt-fg-faint)" }}
-          >
+          {/* Hint */}
+          <p className="mt-3.5 text-center mono text-[9.5px] tracking-[0.26em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>
             ⌘ + ↵ to build
           </p>
 
           {/* Suggestion chips */}
-          <div
-            className="mt-5 flex flex-wrap items-center justify-center gap-1.5"
-            data-testid="landing-suggestion-chips"
-          >
-            {(MODE_SUGGESTIONS[mode] || []).map((s) => (
-              <button
-                key={s.label}
-                type="button"
-                onClick={() => {
-                  onDraftChange(s.prompt);
-                  setTimeout(() => textareaRef.current?.focus(), 30);
-                }}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5" data-testid="landing-suggestion-chips">
+            {(MODE_SUGGESTIONS[mode] || []).map(s => (
+              <button key={s.label} type="button"
+                onClick={() => { onDraftChange(s.prompt); setTimeout(() => textareaRef.current?.focus(), 30); }}
                 className="inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-[11.5px] transition-all hover:-translate-y-0.5"
-                style={{
-                  background: "var(--nxt-chip-bg)",
-                  border: "1px solid var(--nxt-chip-border)",
-                  color: "var(--nxt-fg-dim)",
-                }}
-                data-testid={`landing-suggest-${s.label.toLowerCase().replace(/\s+/g, "-")}`}
+                style={{ background:"var(--nxt-chip-bg)", border:"1px solid var(--nxt-chip-border)", color:"var(--nxt-fg-dim)" }}
+                data-testid={`landing-suggest-${s.label.toLowerCase().replace(/\s+/g,"-")}`}
               >
-                <Sparkles size={10} style={{ color: "var(--nxt-accent)" }} />
+                <Sparkles size={9} style={{ color:"var(--nxt-accent)" }} />
                 {s.label}
               </button>
             ))}
@@ -608,677 +537,389 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* ══════════════════════════════════════════════════
-          BENTO FEATURE GRID
-      ══════════════════════════════════════════════════ */}
-      <section
-        className="relative z-10 mx-auto max-w-[1120px] px-5 sm:px-6 py-12 sm:py-20"
-        data-testid="landing-bento"
-      >
-        {/* Section header */}
-        <div className="text-center mb-10 sm:mb-14">
-          <span
-            className="mono text-[10px] sm:text-[10.5px] tracking-[0.38em] uppercase"
-            style={{ color: "var(--nxt-fg-faint)" }}
-          >
-            WHAT YOU GET
-          </span>
-          <h2
-            className="mt-3 text-[28px] sm:text-[42px] lg:text-[50px] leading-[1.03] tracking-[-0.03em] font-bold"
-            style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
-          >
-            <span
+      {/* ════════════════════════════════════════════
+          STATS — count up on scroll-enter
+      ════════════════════════════════════════════ */}
+      <section className="relative z-10 py-16 sm:py-20 px-5">
+        <div ref={statsRef} className="mx-auto max-w-[860px] grid grid-cols-3 gap-6 sm:gap-10 text-center">
+          {[
+            { value: agentCount, suffix: "+", label: "AI Agents", desc: "Specialists ready to work" },
+            { value: skillCount, suffix: "+", label: "Personal Skills", desc: "GitHub, Notion, iMessage…" },
+            { value: modelCount, suffix: " top",  label: "AI Models", desc: "Switch providers in a tap" },
+          ].map(({ value, suffix, label, desc }) => (
+            <div key={label}
               style={{
-                background: headingFadeGrad,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              Everything to build,
-            </span>{" "}
-            <span style={{ color: "var(--nxt-fg)" }}>ship, and scale.</span>
-          </h2>
-        </div>
-
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-
-          {/* ── Card 1 (spans 2 cols): 191 AI Agents ── */}
-          <div
-            className="sm:col-span-2 rounded-3xl p-6 sm:p-8 relative overflow-hidden glow-hover"
-            style={{
-              background: isLight
-                ? "linear-gradient(145deg, #FBFAF6 0%, #F4EFE0 100%)"
-                : "linear-gradient(145deg, rgba(48,48,56,0.85) 0%, rgba(30,30,36,0.90) 100%)",
-              border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-            data-testid="bento-agents"
-          >
-            {/* Corner glow */}
-            <div
-              aria-hidden
-              className="absolute top-0 left-0 w-48 h-48 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 0% 0%, rgba(94,234,212,0.14) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <span
-                    className="mono text-[10px] tracking-[0.32em] uppercase"
-                    style={{ color: "var(--nxt-fg-faint)" }}
-                  >
-                    AGENTS LIBRARY
-                  </span>
-                  <h3
-                    className="mt-1.5 text-[22px] sm:text-[28px] font-bold tracking-tight leading-tight"
-                    style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-                  >
-                    191 AI Agents
-                  </h3>
-                  <p
-                    className="mt-1 text-[13px] sm:text-[14px] leading-relaxed max-w-[340px]"
-                    style={{ color: "var(--nxt-fg-dim)" }}
-                  >
-                    Backend architects to security auditors. Pick one, connect your keys, tell it what to do.
-                  </p>
-                </div>
-                <div
-                  className="hidden sm:flex items-center justify-center w-10 h-10 rounded-2xl flex-shrink-0 ml-4"
-                  style={{
-                    background: isLight ? "rgba(94,234,212,0.15)" : "rgba(94,234,212,0.12)",
-                    border: "1px solid rgba(94,234,212,0.24)",
-                  }}
-                >
-                  <Cpu size={16} style={{ color: "#5EEAD4" }} />
-                </div>
+                opacity:   statsVisible ? 1 : 0,
+                transform: statsVisible ? "none" : "translateY(24px)",
+                transition: `opacity 0.7s ${spring}, transform 0.7s ${spring}`,
+              }}>
+              <div className="text-[36px] sm:text-[52px] font-black tracking-tight leading-none mb-1"
+                style={{ fontFamily:"'Cabinet Grotesk',sans-serif", background: rainbow, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+                {value}{suffix}
               </div>
-
-              {/* Agent chip grid */}
-              <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-5">
-                {BENTO_AGENTS.map((name, i) => {
-                  const colors = ["#5EEAD4", "#6366F1", "#F59E0B", "#EC4899"];
-                  return (
-                    <span
-                      key={name}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-[10.5px] sm:text-[11px]"
-                      style={{
-                        background: isLight
-                          ? "rgba(26,26,31,0.05)"
-                          : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.08)"}`,
-                        color: "var(--nxt-fg-dim)",
-                      }}
-                    >
-                      <span
-                        className="w-1 h-1 rounded-full flex-shrink-0"
-                        style={{ background: colors[i % colors.length] }}
-                      />
-                      {name}
-                    </span>
-                  );
-                })}
-                <span
-                  className="inline-flex items-center px-2.5 py-1 rounded-lg font-mono text-[10.5px] sm:text-[11px]"
-                  style={{
-                    background: isLight ? "rgba(94,234,212,0.10)" : "rgba(94,234,212,0.08)",
-                    border: "1px solid rgba(94,234,212,0.20)",
-                    color: "#5EEAD4",
-                  }}
-                >
-                  +179 more
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Card 2: Build Anything ── */}
-          <div
-            className="rounded-3xl p-6 sm:p-7 relative overflow-hidden glow-hover"
-            style={{
-              background: isLight
-                ? "linear-gradient(145deg, #FBFAF6 0%, #F4EFE0 100%)"
-                : "linear-gradient(145deg, rgba(48,48,56,0.85) 0%, rgba(30,30,36,0.90) 100%)",
-              border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-            data-testid="bento-build"
-          >
-            <div
-              aria-hidden
-              className="absolute top-0 right-0 w-40 h-40 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 100% 0%, rgba(99,102,241,0.12) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-2xl mb-4"
-                style={{
-                  background: isLight ? "rgba(99,102,241,0.12)" : "rgba(99,102,241,0.10)",
-                  border: "1px solid rgba(99,102,241,0.22)",
-                }}
-              >
-                <Zap size={16} style={{ color: "#6366F1" }} />
-              </div>
-              <span className="mono text-[10px] tracking-[0.32em] uppercase" style={{ color: "var(--nxt-fg-faint)" }}>
-                BUILD ANYTHING
-              </span>
-              <h3
-                className="mt-1.5 text-[20px] sm:text-[22px] font-bold tracking-tight leading-tight mb-2"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-              >
-                Full stack to mobile.
-              </h3>
-              <p className="text-[13px] leading-relaxed mb-5" style={{ color: "var(--nxt-fg-dim)" }}>
-                MVPs. SaaS platforms. Marketing sites. AI workflows. Internal tools.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Full Stack", color: "#5EEAD4" },
-                  { label: "Website",    color: "#6366F1" },
-                  { label: "Mobile",     color: "#F59E0B" },
-                  { label: "Extension",  color: "#EC4899" },
-                ].map(({ label, color }) => (
-                  <div
-                    key={label}
-                    className="px-2.5 py-2 rounded-xl text-[11.5px] font-medium text-center"
-                    style={{
-                      background: `${color}12`,
-                      border: `1px solid ${color}22`,
-                      color: isLight ? "var(--nxt-fg)" : color,
-                    }}
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Card 3: Live Preview ── */}
-          <div
-            className="rounded-3xl p-6 sm:p-7 relative overflow-hidden glow-hover"
-            style={{
-              background: isLight
-                ? "linear-gradient(145deg, #FBFAF6 0%, #F4EFE0 100%)"
-                : "linear-gradient(145deg, rgba(48,48,56,0.85) 0%, rgba(30,30,36,0.90) 100%)",
-              border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-            data-testid="bento-preview"
-          >
-            <div
-              aria-hidden
-              className="absolute bottom-0 left-0 w-40 h-40 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 0% 100%, rgba(245,158,11,0.10) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-2xl mb-4"
-                style={{
-                  background: isLight ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.10)",
-                  border: "1px solid rgba(245,158,11,0.22)",
-                }}
-              >
-                <Eye size={16} style={{ color: "#F59E0B" }} />
-              </div>
-              <span className="mono text-[10px] tracking-[0.32em] uppercase" style={{ color: "var(--nxt-fg-faint)" }}>
-                LIVE PREVIEW
-              </span>
-              <h3
-                className="mt-1.5 text-[20px] sm:text-[22px] font-bold tracking-tight leading-tight mb-2"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-              >
-                See it live instantly.
-              </h3>
-              <p className="text-[13px] leading-relaxed mb-5" style={{ color: "var(--nxt-fg-dim)" }}>
-                Every change reflects across phone, tablet, and desktop in real time.
-              </p>
-              {/* Mini device mockup */}
-              <div className="flex items-end gap-2">
-                <div
-                  className="flex-1 rounded-xl overflow-hidden"
-                  style={{
-                    height: 72,
-                    background: "rgba(26,26,31,0.8)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div className="flex gap-1 px-2 py-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400/60" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
-                  </div>
-                  <div className="px-2 pt-2 flex flex-col gap-1">
-                    <span className="h-1 w-2/3 rounded-full bg-white/15" />
-                    <span className="h-1 w-1/2 rounded-full bg-white/10" />
-                  </div>
-                </div>
-                <div
-                  className="rounded-xl overflow-hidden"
-                  style={{
-                    width: 36,
-                    height: 72,
-                    background: "rgba(26,26,31,0.8)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div className="h-2 flex items-center justify-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <span className="w-5 h-0.5 rounded-full bg-white/20" />
-                  </div>
-                  <div className="px-1 pt-1.5 flex flex-col gap-1">
-                    <span className="h-0.5 w-full rounded-full bg-white/15" />
-                    <span className="h-0.5 w-3/4 rounded-full bg-white/10" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Card 4: AI Models ── */}
-          <div
-            className="rounded-3xl p-6 sm:p-7 relative overflow-hidden glow-hover"
-            style={{
-              background: isLight
-                ? "linear-gradient(145deg, #FBFAF6 0%, #F4EFE0 100%)"
-                : "linear-gradient(145deg, rgba(48,48,56,0.85) 0%, rgba(30,30,36,0.90) 100%)",
-              border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-            data-testid="bento-models"
-          >
-            <div
-              aria-hidden
-              className="absolute top-0 right-0 w-36 h-36 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 100% 0%, rgba(236,72,153,0.10) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-2xl mb-4"
-                style={{
-                  background: isLight ? "rgba(236,72,153,0.10)" : "rgba(236,72,153,0.08)",
-                  border: "1px solid rgba(236,72,153,0.20)",
-                }}
-              >
-                <Sparkles size={16} style={{ color: "#EC4899" }} />
-              </div>
-              <span className="mono text-[10px] tracking-[0.32em] uppercase" style={{ color: "var(--nxt-fg-faint)" }}>
-                TOP AI MODELS
-              </span>
-              <h3
-                className="mt-1.5 text-[20px] sm:text-[22px] font-bold tracking-tight leading-tight mb-2"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-              >
-                5+ models. One place.
-              </h3>
-              <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--nxt-fg-dim)" }}>
-                Claude, GPT-4, Gemini, Grok, DeepSeek. Switch providers in a tap.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {["Claude", "GPT-4", "Gemini", "Grok", "DeepSeek"].map((m, i) => {
-                  const cs = ["#5EEAD4","#10B981","#6366F1","#F59E0B","#EC4899"];
-                  return (
-                    <span
-                      key={m}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium"
-                      style={{
-                        background: `${cs[i]}10`,
-                        border: `1px solid ${cs[i]}25`,
-                        color: isLight ? "var(--nxt-fg)" : cs[i],
-                      }}
-                    >
-                      {m}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Card 5: Private & Exclusive ── */}
-          <div
-            className="rounded-3xl p-6 sm:p-7 relative overflow-hidden glow-hover"
-            style={{
-              background: isLight
-                ? "linear-gradient(145deg, #FBFAF6 0%, #F4EFE0 100%)"
-                : "linear-gradient(145deg, rgba(48,48,56,0.85) 0%, rgba(30,30,36,0.90) 100%)",
-              border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-            }}
-            data-testid="bento-private"
-          >
-            <div
-              aria-hidden
-              className="absolute bottom-0 right-0 w-36 h-36 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 100% 100%, rgba(52,211,153,0.10) 0%, transparent 70%)",
-              }}
-            />
-            <div className="relative">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-2xl mb-4"
-                style={{
-                  background: isLight ? "rgba(52,211,153,0.12)" : "rgba(52,211,153,0.10)",
-                  border: "1px solid rgba(52,211,153,0.22)",
-                }}
-              >
-                <Lock size={16} style={{ color: "#34D399" }} />
-              </div>
-              <span className="mono text-[10px] tracking-[0.32em] uppercase" style={{ color: "var(--nxt-fg-faint)" }}>
-                PRIVATE · EXCLUSIVE
-              </span>
-              <h3
-                className="mt-1.5 text-[20px] sm:text-[22px] font-bold tracking-tight leading-tight mb-2"
-                style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-              >
-                Invite-only. Yours.
-              </h3>
-              <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--nxt-fg-dim)" }}>
-                Built in the United States. Your builds stay private. No public exposure.
-              </p>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-                   style={{
-                     background: "rgba(52,211,153,0.10)",
-                     border: "1px solid rgba(52,211,153,0.22)",
-                   }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 nxt-pulse" />
-                <span className="mono text-[10px] tracking-[0.22em] uppercase font-medium" style={{ color: "#34D399" }}>
-                  Made in the USA
-                </span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════
-          AGENT MARQUEE
-      ══════════════════════════════════════════════════ */}
-      <div className="relative z-10">
-        <AgentMarquee isLight={isLight} />
-      </div>
-
-      {/* ══════════════════════════════════════════════════
-          PROMPT → DEPLOY FLOW
-      ══════════════════════════════════════════════════ */}
-      <div id="flow" className="scroll-mt-20 relative z-10">
-        <PromptToDeployFlow />
-      </div>
-
-      {/* ══════════════════════════════════════════════════
-          DEMOS
-      ══════════════════════════════════════════════════ */}
-      <div id="features" className="scroll-mt-20 relative z-10">
-        <HomepageDemos />
-      </div>
-
-      {/* ══════════════════════════════════════════════════
-          SHIP ANYTHING GRID
-      ══════════════════════════════════════════════════ */}
-      <section
-        id="ship"
-        className="scroll-mt-20 relative z-10 mx-auto max-w-[1080px] px-5 sm:px-6 py-14 sm:py-20"
-        data-testid="landing-capability-strip"
-      >
-        <div className="text-center mb-10">
-          <span
-            className="mono text-[10px] sm:text-[10.5px] tracking-[0.40em] uppercase"
-            style={{ color: "var(--nxt-fg-faint)" }}
-          >
-            WHAT YOU CAN SHIP
-          </span>
-          <h2
-            className="mt-3 text-[26px] sm:text-[36px] lg:text-[42px] leading-[1.05] tracking-[-0.025em] font-bold"
-            style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-          >
-            Built for founders who ship.
-          </h2>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
-          {SHIP_ITEMS.map(({ label, icon: Icon }) => (
-            <div
-              key={label}
-              className="rounded-2xl px-4 py-4 sm:py-5 flex items-center gap-3 glow-hover"
-              style={{
-                background: isLight ? "rgba(26,26,31,0.04)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.06)"}`,
-              }}
-            >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{
-                  background: isLight ? "rgba(94,234,212,0.12)" : "rgba(94,234,212,0.08)",
-                  border: "1px solid rgba(94,234,212,0.18)",
-                }}
-              >
-                <Icon size={13} style={{ color: "#5EEAD4" }} />
-              </div>
-              <span
-                className="text-[12.5px] sm:text-[13.5px] font-medium tracking-tight"
-                style={{ color: "var(--nxt-fg)" }}
-              >
-                {label}
-              </span>
+              <div className="text-[13px] sm:text-[15px] font-semibold mb-0.5" style={{ color:"var(--nxt-fg)" }}>{label}</div>
+              <div className="text-[11.5px] sm:text-[12.5px]" style={{ color:"var(--nxt-fg-faint)" }}>{desc}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          AGENTS SECTION
-      ══════════════════════════════════════════════════ */}
-      <section
-        id="agents"
-        className="scroll-mt-20 relative z-10 mx-auto max-w-[1080px] px-5 sm:px-6 py-14 sm:py-20"
-        data-testid="landing-agents-teaser"
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          <div>
-            <span
-              className="mono text-[10px] sm:text-[10.5px] tracking-[0.40em] uppercase"
-              style={{ color: "var(--nxt-fg-faint)" }}
-            >
-              AGENTS LIBRARY
+      {/* ════════════════════════════════════════════
+          HOW IT WORKS — 3 steps, staggered reveal
+      ════════════════════════════════════════════ */}
+      <section id="how" className="scroll-mt-20 relative z-10 py-14 sm:py-20 px-5 sm:px-8 mx-auto max-w-[1100px]">
+        <Reveal className="text-center mb-10 sm:mb-14">
+          <span className="mono text-[10px] tracking-[0.38em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>HOW IT WORKS</span>
+          <h2 className="mt-3 text-[28px] sm:text-[44px] font-bold tracking-[-0.03em]"
+            style={{ fontFamily:"'Cabinet Grotesk',sans-serif" }}>
+            <span style={{ background: fadedHead, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+              From a sentence to shipped.
             </span>
-            <h2
-              className="mt-3 text-[28px] sm:text-[38px] lg:text-[44px] leading-[1.05] tracking-[-0.025em] font-bold"
-              style={{ fontFamily: "'Cabinet Grotesk', sans-serif" }}
-            >
-              <span style={{ color: "var(--nxt-fg)" }}>Pick an agent.</span>{" "}
-              <span
-                style={{
-                  background: headingFadeGrad,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                Tell it what to do.
-              </span>
-            </h2>
-            <p
-              className="mt-4 text-[14px] sm:text-[15px] leading-relaxed max-w-[480px]"
-              style={{ color: "var(--nxt-fg-dim)" }}
-            >
-              191 specialised AI agents — backend architects, security auditors,
-              test automators, DevOps responders — plus 52 personal-assistant
-              skills. All browsable from a single workspace surface.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => navigate(authed ? "/workspace/agents" : "/signin?return=/workspace/agents")}
-                className="inline-flex items-center gap-2 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-all hover:-translate-y-0.5"
-                style={{
-                  background: isLight ? "#1F1F23" : "#FFFFFF",
-                  color: isLight ? "#FAFAFA" : "#1F1F23",
-                  boxShadow: isLight
-                    ? "0 10px 28px -10px rgba(31,31,35,0.30)"
-                    : "0 10px 28px -10px rgba(255,255,255,0.40)",
-                }}
-                data-testid="landing-agents-cta"
-              >
-                Open agents library <ArrowRight size={13} />
-              </button>
-              <span
-                className="inline-flex items-center mono text-[10.5px] tracking-[0.22em] uppercase"
-                style={{ color: "var(--nxt-fg-faint)" }}
-              >
-                Workspace · Auth required
-              </span>
-            </div>
-          </div>
+          </h2>
+        </Reveal>
 
-          {/* Agent chip grid */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            {[
-              { name: "backend-architect",     hint: "Service design"   },
-              { name: "security-auditor",      hint: "OWASP review"     },
-              { name: "frontend-developer",    hint: "UI components"    },
-              { name: "test-automator",        hint: "Coverage + CI"    },
-              { name: "devops-troubleshooter", hint: "Incident triage"  },
-              { name: "code-reviewer",         hint: "Refactor"         },
-              { name: "github",                hint: "Personal skill"   },
-              { name: "notion",                hint: "Personal skill"   },
-            ].map((a) => (
-              <div
-                key={a.name}
-                className="rounded-2xl px-3.5 py-3.5 glow-hover"
-                style={{
-                  background: isLight ? "rgba(26,26,31,0.04)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.06)"}`,
-                }}
-              >
-                <div
-                  className="font-mono text-[11.5px] sm:text-[12px] truncate font-medium"
-                  style={{ color: "var(--nxt-fg)" }}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          {[
+            { n:"01", title:"Describe", body:"Type what you want to build — one sentence or a full spec. The AI figures out the rest.", color:"#5EEAD4", icon: Sparkles },
+            { n:"02", title:"Generate", body:"Watch code, UI, and logic stream into a complete working app in real time.", color:"#6366F1", icon: Zap },
+            { n:"03", title:"Ship",     body:"Preview on any device, connect a domain, and deploy to production in one click.", color:"#F59E0B", icon: Layers },
+          ].map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <Reveal key={s.n} delay={i * 110} from="bottom">
+                <div className="rounded-3xl p-6 sm:p-8 h-full relative overflow-hidden group cursor-default"
+                  style={{
+                    background: isLight ? "linear-gradient(150deg,#FBFAF6,#F0EAD8)" : "linear-gradient(150deg,rgba(44,44,52,0.9),rgba(28,28,34,0.95))",
+                    border: `1px solid ${isLight ? "rgba(26,26,31,0.07)" : "rgba(255,255,255,0.07)"}`,
+                    transition: "transform 0.3s ease, box-shadow 0.3s ease",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow=`0 24px 50px -20px ${s.color}30`; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}
                 >
-                  {a.name}
+                  <div aria-hidden className="absolute top-0 right-0 w-28 h-28 pointer-events-none rounded-full" style={{ background:`radial-gradient(circle at 100% 0%,${s.color}18 0%,transparent 70%)` }} />
+                  <div className="flex items-center justify-between mb-6">
+                    <span className="mono text-[10px] tracking-[0.32em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>{s.n}</span>
+                    <span className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                      style={{ background:`${s.color}14`, border:`1px solid ${s.color}28` }}>
+                      <Icon size={15} style={{ color: s.color }} />
+                    </span>
+                  </div>
+                  <h3 className="text-[22px] font-bold tracking-tight mb-2" style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>{s.title}</h3>
+                  <p className="text-[13.5px] leading-relaxed" style={{ color:"var(--nxt-fg-dim)" }}>{s.body}</p>
                 </div>
-                <div
-                  className="text-[10.5px] mt-0.5"
-                  style={{ color: "var(--nxt-fg-faint)" }}
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
+          AGENTS — marquee + detail card
+      ════════════════════════════════════════════ */}
+      <section id="agents" className="scroll-mt-20 relative z-10 py-14 sm:py-20">
+        <Reveal className="text-center px-5 mb-10">
+          <span className="mono text-[10px] tracking-[0.38em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>AGENTS LIBRARY</span>
+          <h2 className="mt-3 text-[28px] sm:text-[44px] font-bold tracking-[-0.03em]"
+            style={{ fontFamily:"'Cabinet Grotesk',sans-serif" }}>
+            <span style={{ color:"var(--nxt-fg)" }}>200 AI agents.</span>{" "}
+            <span style={{ background: fadedHead, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>One platform.</span>
+          </h2>
+          <p className="mt-3 text-[14px] sm:text-[15.5px] max-w-[520px] mx-auto leading-relaxed" style={{ color:"var(--nxt-fg-dim)" }}>
+            From backend architects to security auditors to personal skills. Pick one, connect your API keys, tell it what to do.
+          </p>
+        </Reveal>
+
+        {/* Marquee row */}
+        <div className="relative overflow-hidden py-3">
+          <div className="absolute inset-y-0 left-0 w-16 sm:w-24 z-10 pointer-events-none" style={{ background:`linear-gradient(90deg,var(--nxt-bg) 0%,transparent 100%)` }} />
+          <div className="absolute inset-y-0 right-0 w-16 sm:w-24 z-10 pointer-events-none" style={{ background:`linear-gradient(270deg,var(--nxt-bg) 0%,transparent 100%)` }} />
+          <div className="flex gap-2.5 nxt-marquee" style={{ width:"max-content" }}>
+            {[...ALL_AGENTS,...ALL_AGENTS].map((name, i) => {
+              const dots = ["#5EEAD4","#6366F1","#F59E0B","#EC4899"];
+              return (
+                <div key={i} className="flex-shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-full font-mono text-[11px] sm:text-[12px]"
+                  style={{ background:"var(--nxt-surface-soft)", border:"1px solid var(--nxt-border-soft)", color:"var(--nxt-fg-dim)" }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dots[i % dots.length] }} />
+                  {name}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Agent CTA */}
+        <div className="flex justify-center mt-8 px-5">
+          <Reveal>
+            <button type="button"
+              onClick={() => navigate(authed ? "/workspace/agents" : "/signin?return=/workspace/agents")}
+              className="inline-flex items-center gap-2 h-11 px-6 rounded-full text-[13.5px] font-semibold tracking-tight transition-all hover:-translate-y-0.5"
+              style={{
+                background: isLight ? "#1F1F23" : "#FFFFFF",
+                color: isLight ? "#FAFAFA" : "#1F1F23",
+                boxShadow: isLight ? "0 10px 28px -10px rgba(31,31,35,0.30)" : "0 10px 28px -10px rgba(255,255,255,0.40)",
+              }}
+              data-testid="landing-agents-cta"
+            >
+              Browse all 200 agents <ArrowRight size={13} />
+            </button>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
+          FEATURES BENTO — staggered cards
+      ════════════════════════════════════════════ */}
+      <section className="relative z-10 py-14 sm:py-20 px-5 sm:px-8 mx-auto max-w-[1100px]">
+        <Reveal className="text-center mb-10 sm:mb-14">
+          <span className="mono text-[10px] tracking-[0.38em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>WHAT YOU GET</span>
+          <h2 className="mt-3 text-[28px] sm:text-[44px] font-bold tracking-[-0.03em]"
+            style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>
+            Everything. Already built in.
+          </h2>
+        </Reveal>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {[
+            {
+              title: "Live Preview",
+              body: "Every change reflows instantly across phone, tablet, and desktop before you ship.",
+              color: "#5EEAD4", icon: Eye, delay: 0,
+              visual: (
+                <div className="flex items-end gap-2 mt-5">
+                  {/* Desktop mock */}
+                  <div className="flex-1 rounded-xl overflow-hidden" style={{ background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="flex gap-1 px-2 py-1.5" style={{ borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background:"#F87171" }} /><span className="w-1.5 h-1.5 rounded-full" style={{ background:"#FBBF24" }} /><span className="w-1.5 h-1.5 rounded-full" style={{ background:"#34D399" }} />
+                    </div>
+                    <div className="p-2 flex flex-col gap-1">
+                      <span className="h-1 w-2/3 rounded-full bg-white/15 nxt-shimmer" /><span className="h-1 w-1/2 rounded-full bg-white/10" />
+                      <div className="grid grid-cols-3 gap-1 mt-1">
+                        {[0,1,2].map(k=><span key={k} className="h-5 rounded-md" style={{ background:"rgba(94,234,212,0.20)" }} />)}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Phone mock */}
+                  <div className="rounded-2xl overflow-hidden flex-shrink-0" style={{ width:32, height:64, background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="h-2 flex items-center justify-center"><span className="w-5 h-0.5 rounded-full bg-white/20" /></div>
+                    <div className="px-1 pt-1 flex flex-col gap-0.5"><span className="h-0.5 w-full rounded-full bg-white/15" /><span className="h-0.5 w-3/4 rounded-full bg-white/10" /><div className="grid grid-cols-2 gap-0.5 mt-1">{[0,1,2,3].map(k=><span key={k} className="aspect-square rounded" style={{ background:"rgba(94,234,212,0.22)" }} />)}</div></div>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              title: "Build Anything",
+              body: "Full-stack apps, marketing sites, mobile, Chrome extensions — four modes, one builder.",
+              color: "#6366F1", icon: Zap, delay: 80,
+              visual: (
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  {[["Full Stack","#5EEAD4"],["Website","#6366F1"],["Mobile","#F59E0B"],["Extension","#EC4899"]].map(([l,c])=>(
+                    <div key={l} className="px-2.5 py-2 rounded-xl text-center text-[11.5px] font-medium"
+                      style={{ background:`${c}12`, border:`1px solid ${c}22`, color:c }}>
+                      {l}
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+            {
+              title: "Private & Exclusive",
+              body: "Invite-only. Built in the United States. Your builds stay yours — no public exposure.",
+              color: "#34D399", icon: Lock, delay: 160,
+              visual: (
+                <div className="mt-5">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background:"rgba(52,211,153,0.10)", border:"1px solid rgba(52,211,153,0.22)" }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 nxt-pulse" />
+                    <span className="mono text-[10px] tracking-[0.22em] uppercase font-medium" style={{ color:"#34D399" }}>Invite Only · USA</span>
+                  </div>
+                </div>
+              ),
+            },
+          ].map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <Reveal key={card.title} delay={card.delay} from="bottom">
+                <div className="rounded-3xl p-6 sm:p-7 h-full relative overflow-hidden group"
+                  style={{
+                    background: isLight ? "linear-gradient(150deg,#FBFAF6,#F0EAD8)" : "linear-gradient(150deg,rgba(44,44,52,0.9),rgba(28,28,34,0.95))",
+                    border: `1px solid ${isLight ? "rgba(26,26,31,0.07)" : "rgba(255,255,255,0.07)"}`,
+                    transition: "transform 0.3s ease, box-shadow 0.3s ease",
+                  }}
+                  onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow=`0 24px 50px -20px ${card.color}28`; }}
+                  onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}
                 >
-                  {a.hint}
+                  <div aria-hidden className="absolute top-0 right-0 w-24 h-24 pointer-events-none" style={{ background:`radial-gradient(circle at 100% 0%,${card.color}16 0%,transparent 70%)` }} />
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-4"
+                    style={{ background:`${card.color}14`, border:`1px solid ${card.color}28` }}>
+                    <Icon size={15} style={{ color:card.color }} />
+                  </div>
+                  <h3 className="text-[20px] sm:text-[22px] font-bold tracking-tight mb-2" style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>{card.title}</h3>
+                  <p className="text-[13px] leading-relaxed" style={{ color:"var(--nxt-fg-dim)" }}>{card.body}</p>
+                  {card.visual}
                 </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
+          MODELS — compact logo wall
+      ════════════════════════════════════════════ */}
+      <section id="models" className="scroll-mt-20 relative z-10 py-14 sm:py-20 px-5 sm:px-8">
+        <Reveal className="text-center mb-8 sm:mb-10">
+          <span className="mono text-[10px] tracking-[0.38em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>POWERED BY</span>
+          <h2 className="mt-3 text-[26px] sm:text-[38px] font-bold tracking-[-0.03em]"
+            style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>
+            Top AI models. One place.
+          </h2>
+          <p className="mt-2 text-[14px]" style={{ color:"var(--nxt-fg-dim)" }}>Switch providers in a tap. Bring your own API keys.</p>
+        </Reveal>
+
+        <div className="mx-auto max-w-[680px]">
+          <Reveal>
+            <div className="rounded-3xl p-6 sm:p-8"
+              style={{
+                background: isLight ? "linear-gradient(150deg,#FBFAF6,#F0EAD8)" : "linear-gradient(150deg,rgba(44,44,52,0.9),rgba(28,28,34,0.95))",
+                border: `1px solid ${isLight ? "rgba(26,26,31,0.07)" : "rgba(255,255,255,0.07)"}`,
+              }}
+              data-testid="showcase-provider-wall"
+            >
+              <div className="grid grid-cols-5 gap-4 sm:gap-6 items-center justify-items-center">
+                {PROVIDERS.map((p, i) => (
+                  <Reveal key={p.key} delay={i * 60}>
+                    <div className="flex flex-col items-center gap-2 group">
+                      <div className="flex items-center justify-center rounded-2xl overflow-hidden transition-all duration-200 group-hover:-translate-y-1 group-hover:shadow-xl"
+                        style={{ width:48, height:48, background:p.tile, boxShadow:"0 6px 18px -8px rgba(0,0,0,0.5),inset 0 0 0 1px rgba(255,255,255,0.06)" }}>
+                        <ProviderLogo provider={p.key} size={28} invert={p.invert} />
+                      </div>
+                      <span className="mono text-[9.5px] sm:text-[10px] tracking-[0.16em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>{p.label}</span>
+                    </div>
+                  </Reveal>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════
-          MODELS SHOWCASE
-      ══════════════════════════════════════════════════ */}
-      <div id="showcase" className="scroll-mt-20 relative z-10">
-        <LandingShowcase />
-      </div>
+      {/* ════════════════════════════════════════════
+          SHIP ANYTHING — 8-item grid
+      ════════════════════════════════════════════ */}
+      <section id="ship" className="scroll-mt-20 relative z-10 py-14 sm:py-20 px-5 sm:px-8 mx-auto max-w-[1100px]">
+        <Reveal className="text-center mb-10">
+          <span className="mono text-[10px] tracking-[0.38em] uppercase" style={{ color:"var(--nxt-fg-faint)" }}>WHAT YOU CAN SHIP</span>
+          <h2 className="mt-3 text-[26px] sm:text-[40px] font-bold tracking-[-0.03em]"
+            style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>
+            Built for founders who ship.
+          </h2>
+        </Reveal>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          {SHIP_ITEMS.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <Reveal key={item.label} delay={i * 55} from="scale">
+                <div className="rounded-2xl px-4 py-4 sm:py-5 flex items-center gap-3 group cursor-default"
+                  style={{
+                    background: isLight ? "rgba(26,26,31,0.04)" : "rgba(255,255,255,0.025)",
+                    border: `1px solid ${isLight ? "rgba(26,26,31,0.07)" : "rgba(255,255,255,0.06)"}`,
+                    transition:"transform 0.25s ease,box-shadow 0.25s ease,border-color 0.25s ease",
+                  }}
+                  onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.borderColor=`${item.color}35`; e.currentTarget.style.boxShadow=`0 14px 32px -14px ${item.color}25`; }}
+                  onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.borderColor=""; e.currentTarget.style.boxShadow=""; }}
+                >
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background:`${item.color}14`, border:`1px solid ${item.color}24` }}>
+                    <Icon size={13} style={{ color:item.color }} />
+                  </div>
+                  <span className="text-[12.5px] sm:text-[13.5px] font-medium tracking-tight" style={{ color:"var(--nxt-fg)" }}>{item.label}</span>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* ══════════════════════════════════════════════════
-          FULL-WIDTH CTA STRIP
-      ══════════════════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto max-w-[1080px] px-5 sm:px-6 py-10 pb-16 sm:pb-20">
-        <div
-          className="relative rounded-3xl overflow-hidden px-6 sm:px-14 py-12 sm:py-16 text-center"
-          style={{
-            background: isLight
-              ? "linear-gradient(135deg, rgba(20,130,110,0.12) 0%, rgba(181,131,32,0.08) 50%, rgba(194,90,31,0.10) 100%), var(--nxt-surface-soft)"
-              : "linear-gradient(135deg, rgba(94,234,212,0.08) 0%, rgba(99,102,241,0.06) 50%, rgba(245,158,11,0.06) 100%), rgba(36,36,40,0.55)",
-            border: `1px solid ${isLight ? "rgba(26,26,31,0.08)" : "rgba(255,255,255,0.07)"}`,
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-          }}
-          data-testid="landing-cta-strip"
-        >
-          {/* Background orb */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none"
+      {/* ════════════════════════════════════════════
+          CTA — full-width
+      ════════════════════════════════════════════ */}
+      <section className="relative z-10 px-5 sm:px-8 py-10 pb-20 mx-auto max-w-[1100px]">
+        <Reveal>
+          <div className="relative rounded-3xl overflow-hidden px-7 sm:px-16 py-14 sm:py-20 text-center"
             style={{
-              background: "radial-gradient(70% 70% at 50% 0%, rgba(94,234,212,0.07) 0%, transparent 70%)",
+              background: isLight
+                ? "linear-gradient(135deg,rgba(20,130,110,0.10) 0%,rgba(181,131,32,0.07) 50%,rgba(194,90,31,0.09) 100%),#F7F2E4"
+                : "linear-gradient(135deg,rgba(94,234,212,0.07) 0%,rgba(99,102,241,0.06) 50%,rgba(245,158,11,0.05) 100%),rgba(32,32,38,0.6)",
+              border: `1px solid ${isLight ? "rgba(26,26,31,0.07)" : "rgba(255,255,255,0.07)"}`,
+              backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
             }}
-          />
-          <div className="relative">
-            <div
-              className="mono text-[10px] sm:text-[10.5px] tracking-[0.38em] uppercase font-medium bg-clip-text text-transparent mb-3"
-              style={{ backgroundImage: rainbowGrad }}
-            >
-              DISCOVER · DEVELOP · DELIVER
-            </div>
-            <h2
-              className="text-[28px] sm:text-[42px] leading-[1.05] font-bold tracking-[-0.025em] mb-3"
-              style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--nxt-fg)" }}
-            >
-              Ready to build your next idea?
-            </h2>
-            <p
-              className="text-[14px] sm:text-[15.5px] mb-8 max-w-[440px] mx-auto leading-relaxed"
-              style={{ color: "var(--nxt-fg-dim)" }}
-            >
-              Join a select group of founders building real software with AI. Invite-only access.
-            </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => navigate("/signup")}
-                className="inline-flex items-center gap-2 h-12 px-7 rounded-full text-[14px] font-semibold tracking-tight transition-all hover:-translate-y-0.5 group"
-                style={{
-                  background: isLight ? "#1F1F23" : "#FFFFFF",
-                  color: isLight ? "#FAFAFA" : "#1F1F23",
-                  boxShadow: isLight
-                    ? "0 12px 32px -10px rgba(31,31,35,0.35)"
-                    : "0 12px 32px -10px rgba(255,255,255,0.50)",
-                }}
-                data-testid="landing-cta-button"
-              >
-                Request access
-                <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/signin")}
-                className="inline-flex items-center gap-2 h-12 px-6 rounded-full text-[14px] font-medium tracking-tight transition-all hover:opacity-80"
-                style={{ color: "var(--nxt-fg-dim)" }}
-              >
-                Sign in
-              </button>
-            </div>
-            {/* Jwood signature */}
-            <div
-              className="mt-8 flex items-center justify-center gap-2.5"
-              data-testid="landing-jwood-signature"
-            >
-              <span className="h-px w-8" style={{ background: "var(--nxt-border-soft)" }} />
-              <span
-                className="mono text-[10px] tracking-[0.30em] uppercase"
-                style={{ color: "var(--nxt-fg-faint)" }}
-              >
-                A product of{" "}
-                <span style={{ color: "var(--nxt-fg-dim)", fontWeight: 600 }}>
-                  Jwood Technologies
-                </span>
-              </span>
-              <span className="h-px w-8" style={{ background: "var(--nxt-border-soft)" }} />
+            data-testid="landing-cta-strip"
+          >
+            <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background:"radial-gradient(70% 70% at 50% 0%,rgba(94,234,212,0.06) 0%,transparent 70%)" }} />
+            <div className="relative">
+              <div className="mono text-[10px] sm:text-[10.5px] tracking-[0.40em] uppercase font-medium bg-clip-text text-transparent mb-4"
+                style={{ backgroundImage: rainbow }}>
+                DISCOVER · DEVELOP · DELIVER
+              </div>
+              <h2 className="text-[28px] sm:text-[46px] font-black tracking-[-0.03em] mb-4 leading-[1.02]"
+                style={{ fontFamily:"'Cabinet Grotesk',sans-serif", color:"var(--nxt-fg)" }}>
+                Ready to build your<br className="hidden sm:block" /> next idea?
+              </h2>
+              <p className="text-[14.5px] sm:text-[16px] max-w-[420px] mx-auto mb-9 leading-relaxed" style={{ color:"var(--nxt-fg-dim)" }}>
+                Join a select group of founders building real software with AI. Invite-only access.
+              </p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <button onClick={() => navigate("/signup")}
+                  className="inline-flex items-center gap-2 h-12 px-8 rounded-full text-[14px] font-bold tracking-tight transition-all hover:-translate-y-0.5 group"
+                  style={{
+                    background: isLight ? "#1F1F23" : "#FFFFFF",
+                    color: isLight ? "#FAFAFA" : "#1F1F23",
+                    boxShadow: isLight ? "0 12px 32px -10px rgba(31,31,35,0.35)" : "0 12px 32px -10px rgba(255,255,255,0.50)",
+                  }}
+                  data-testid="landing-cta-button"
+                >
+                  Request access
+                  <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                </button>
+                <button onClick={() => navigate("/signin")}
+                  className="inline-flex items-center gap-1.5 h-12 px-6 rounded-full text-[14px] font-medium tracking-tight transition-all hover:opacity-70"
+                  style={{ color:"var(--nxt-fg-dim)" }}>
+                  Sign in
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      <PublicFooter />
+      {/* ════════════════════════════════════════════
+          FOOTER
+      ════════════════════════════════════════════ */}
+      <footer className="relative z-10 px-5 sm:px-10 pt-6 pb-8 sm:pb-10" style={{ borderTop:"1px solid var(--nxt-border-soft)" }} data-testid="public-footer">
+        <div className="mx-auto max-w-[1080px]">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
+            <Brand size="sm" gradient />
+            <nav className="flex items-center gap-5 sm:gap-6 text-[12px]" style={{ color:"var(--nxt-fg-faint)" }}>
+              <Link to="/privacy" className="hover:opacity-80 transition-opacity" data-testid="footer-privacy">Privacy</Link>
+              <Link to="/terms"   className="hover:opacity-80 transition-opacity" data-testid="footer-terms">Terms</Link>
+              <Link to="/contact" className="hover:opacity-80 transition-opacity" data-testid="footer-contact">Contact</Link>
+              <Link to="/access"  className="hover:opacity-80 transition-opacity" data-testid="footer-workspace">Workspace</Link>
+            </nav>
+          </div>
+          <div className="mt-5 h-px" style={{ background:"var(--nxt-border-soft)" }} />
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11.5px]" style={{ color:"var(--nxt-fg-faint)" }} data-testid="footer-attribution">
+            <span data-testid="footer-jwood-attribution">
+              A product of <span style={{ color:"var(--nxt-fg-dim)", fontWeight:600 }}>Jwood Technologies</span>
+            </span>
+            <span style={{ opacity:.4 }}>·</span>
+            <span className="inline-flex items-center gap-1.5" data-testid="footer-made-in-usa">
+              <USFlag />
+              Made in the USA
+            </span>
+            <span style={{ opacity:.4 }}>·</span>
+            <span>© {new Date().getFullYear()} NXT1</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
