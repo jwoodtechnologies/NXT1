@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           <Section title="Third-party model providers">
             <p>
               Your prompts and project context may be transmitted to AI providers (Anthropic, OpenAI,
-              Google, Groq, DeepSeek and similar) under their respective enterprise terms. We choose
+              Google, Groq and similar) under their respective enterprise terms. We choose
               providers that offer no-retention or zero-data-training configurations wherever possible
               and we route by the provider you select in the model picker.
             </p>

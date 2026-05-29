@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
-import { ArrowUpRight, Sparkles, Layers, Globe, Smartphone, Puzzle, Bot, Rocket, Cpu } from "lucide-react";
+import { ArrowUpRight, SendHorizontal, Sparkles, Layers, Globe, Smartphone, Puzzle, Bot, Rocket, Cpu } from "lucide-react";
 import Brand from "@/components/Brand";
 import PublicFooter from "@/components/PublicFooter";
 import { isAuthenticated } from "@/lib/auth";
@@ -79,8 +79,8 @@ const CAPS = [
   },
   {
     title: "Multi-Model",
-    body: "Every major AI provider in a single interface. Claude, GPT-4, Gemini, Grok, DeepSeek — connect your own keys and switch models per task.",
-    tags: ["Claude", "GPT-4", "Gemini", "DeepSeek"],
+    body: "Every major AI provider in a single interface. Claude, GPT-4, Gemini, Grok — connect your own keys and switch models per task.",
+    tags: ["Claude", "GPT-4", "Gemini", "Grok"],
     Icon: Cpu,
   },
 ];
@@ -91,24 +91,6 @@ const CTA_VIDEO = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIX
 // ─── Typography shortcuts ─────────────────────────────────────────────────────
 const FONT_HEADING = { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" };
 const FONT_BODY    = { fontFamily: "'Barlow', sans-serif" };
-
-// ─── Scroll-direction hook — hides nav on scroll-down, reveals on scroll-up ──
-function useNavVisible() {
-  const [visible, setVisible] = useState(true);
-  const lastY = useRef(0);
-  useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (y < 80)               setVisible(true);
-      else if (y > lastY.current + 8)  setVisible(false);
-      else if (y < lastY.current - 5)  setVisible(true);
-      lastY.current = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  return visible;
-}
 
 // ─── Typed placeholder ────────────────────────────────────────────────────────
 function useTypedPlaceholder(cycle, { isPaused }) {
@@ -347,7 +329,6 @@ function CinematicCTASection({ authed, onAction }) {
 // ─── Landing Page ─────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const navigate    = useNavigate();
-  const navVisible  = useNavVisible();
   const [authed,   setAuthed]   = useState(false);
   const [draft,    setDraft]    = useState("");
   const [mode,     setMode]     = useState("fullstack");
@@ -402,16 +383,8 @@ export default function LandingPage() {
 
         <div className="relative z-10 flex flex-col" style={{ minHeight: "100vh" }}>
 
-          {/* ── Navbar — hides on scroll-down, reveals on scroll-up ── */}
-          <header
-            className="fixed top-0 inset-x-0 z-50 transition-transform duration-300"
-            style={{
-              transform: navVisible ? "translateY(0)" : "translateY(-100%)",
-              background: "rgba(0,0,0,0.38)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
-            }}
-          >
+          {/* ── Navbar ── */}
+          <header className="w-full z-50">
             <div className="flex items-center justify-between px-4 sm:px-8 lg:px-16 py-3 max-w-screen-xl mx-auto">
 
               {/* Logo — no bubble, just the wordmark */}
@@ -469,7 +442,7 @@ export default function LandingPage() {
           </header>
 
           {/* ── Hero body ──────────────────────────────────────────── */}
-          <div className="flex-1 flex flex-col items-center justify-center px-4 pt-24 pb-6">
+          <div className="flex-1 flex flex-col items-center justify-center px-4 pt-6 pb-6">
 
             {/* Badge */}
             <motion.div {...fade(0.4)} className="mb-5">
@@ -525,9 +498,9 @@ export default function LandingPage() {
                   data-testid="landing-prompt-input"
                 />
 
-                {/* Mode pills — horizontal scroll on mobile */}
-                <div className="px-4 pb-2">
-                  <div className="flex items-center gap-2 overflow-x-auto"
+                {/* Mode pills + send icon in one row */}
+                <div className="px-4 pb-3 pt-1 flex items-center gap-2">
+                  <div className="flex items-center gap-2 overflow-x-auto flex-1"
                     style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                     role="tablist" aria-label="Build type">
                     {MODES.map((m) => {
@@ -554,18 +527,10 @@ export default function LandingPage() {
                       );
                     })}
                   </div>
-                </div>
-
-                {/* Divider */}
-                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "0 16px" }} />
-
-                {/* Action row — Build button only */}
-                <div className="flex items-center justify-end px-4 py-3">
                   <button type="button" onClick={onBuild} disabled={!draft.trim()}
                     data-testid="landing-build-button"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold bg-white text-[#0c0c0e] hover:bg-white/90 transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
-                    style={FONT_BODY}>
-                    <Sparkles size={13} /> Build
+                    className="shrink-0 w-9 h-9 rounded-full bg-white flex items-center justify-center transition-all hover:bg-white/90 active:scale-95 disabled:opacity-25 disabled:cursor-not-allowed">
+                    <SendHorizontal size={15} className="text-[#0c0c0e]" strokeWidth={2} />
                   </button>
                 </div>
               </div>
@@ -615,7 +580,7 @@ export default function LandingPage() {
           {/* Provider row — bottom of hero */}
           <motion.div {...fade(1.5)} className="flex flex-col items-center gap-3 pb-6 px-4">
             <div className="flex items-center gap-5 sm:gap-10 flex-wrap justify-center">
-              {["Claude", "GPT-4", "Gemini", "Grok", "DeepSeek"].map((name) => (
+              {["Claude", "GPT-4", "Gemini", "Grok"].map((name) => (
                 <span key={name} style={{ ...FONT_HEADING, fontSize: "clamp(1.2rem, 3.5vw, 1.75rem)", color: "rgba(255,255,255,0.55)", letterSpacing: "-0.5px" }}>
                   {name}
                 </span>
