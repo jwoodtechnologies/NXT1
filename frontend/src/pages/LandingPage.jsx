@@ -86,9 +86,30 @@ const CAPS = [
   },
 ];
 
+// ─── Video URL for CTA section ───────────────────────────────────────────────
+const CTA_VIDEO = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4";
+
 // ─── Typography shortcuts ─────────────────────────────────────────────────────
 const FONT_HEADING = { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" };
 const FONT_BODY    = { fontFamily: "'Barlow', sans-serif" };
+
+// ─── Scroll-direction hook — hides nav on scroll-down, reveals on scroll-up ──
+function useNavVisible() {
+  const [visible, setVisible] = useState(true);
+  const lastY = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 80)               setVisible(true);
+      else if (y > lastY.current + 8)  setVisible(false);
+      else if (y < lastY.current - 5)  setVisible(true);
+      lastY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return visible;
+}
 
 // ─── Typed placeholder ────────────────────────────────────────────────────────
 function useTypedPlaceholder(cycle, { isPaused }) {
@@ -235,9 +256,72 @@ function GlobeIcon() {
   );
 }
 
+// ─── Cinematic CTA Section — before footer ────────────────────────────────────
+function CinematicCTASection({ authed, onAction }) {
+  return (
+    <section className="relative overflow-hidden" style={{ minHeight: "85vh", background: "#000" }}>
+      {/* Video — shifted down 17% so the top of the frame is focal point */}
+      <FadingVideo
+        src={CTA_VIDEO}
+        className="absolute inset-0 w-full h-full object-cover z-0"
+        style={{ transform: "translateY(17%)" }}
+      />
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 z-[1]" style={{ background: "rgba(0,0,0,0.52)" }} />
+      {/* Bottom fade to black so it bleeds into footer */}
+      <div className="absolute bottom-0 inset-x-0 z-[2] h-32"
+        style={{ background: "linear-gradient(to bottom, transparent, #000)" }} />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center px-5 sm:px-8"
+        style={{ minHeight: "85vh" }}>
+
+        {/* Discover · Develop · Deliver */}
+        <div className="liquid-glass rounded-full px-4 py-1.5 mb-8"
+          style={{ ...FONT_BODY, fontSize: "11px", letterSpacing: "0.32em", color: "rgba(255,255,255,0.75)", textTransform: "uppercase" }}>
+          Discover · Develop · Deliver
+        </div>
+
+        {/* Headline */}
+        <h2 className="max-w-2xl mb-5 text-white"
+          style={{
+            ...FONT_HEADING,
+            fontSize: "clamp(2.6rem, 6vw, 5rem)",
+            lineHeight: 0.93,
+            letterSpacing: "-2px",
+          }}>
+          Your next build is one prompt away.
+        </h2>
+
+        {/* Subtitle */}
+        <p className="max-w-md mb-10 font-light"
+          style={{ color: "rgba(255,255,255,0.62)", ...FONT_BODY, fontSize: "clamp(0.875rem, 2vw, 1rem)", lineHeight: 1.65 }}>
+          NXT1 gives you 191 AI agents, every major model, and one‑click deploy —
+          all in one private platform built for founders who ship.
+        </p>
+
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <button
+            type="button"
+            onClick={onAction}
+            className="liquid-glass-strong inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+            style={FONT_BODY}>
+            {authed ? "Open Workspace" : "Request Early Access"} <ArrowUpRight size={15} />
+          </button>
+          <span style={{ ...FONT_BODY, fontSize: "11px", color: "rgba(255,255,255,0.28)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+            A product of Jwood Technologies
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── Landing Page ─────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const navigate    = useNavigate();
+  const navVisible  = useNavVisible();
   const [authed,   setAuthed]   = useState(false);
   const [draft,    setDraft]    = useState("");
   const [mode,     setMode]     = useState("fullstack");
@@ -290,10 +374,15 @@ export default function LandingPage() {
 
         <div className="relative z-10 flex flex-col" style={{ minHeight: "100vh" }}>
 
-          {/* ── Fixed navbar ─────────────────────────────────────── */}
+          {/* ── Navbar — hides on scroll-down, reveals on scroll-up ── */}
           <header
-            className="fixed top-0 inset-x-0 z-50"
-            style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}
+            className="fixed top-0 inset-x-0 z-50 transition-transform duration-300"
+            style={{
+              transform: navVisible ? "translateY(0)" : "translateY(-100%)",
+              background: "rgba(0,0,0,0.38)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+            }}
           >
             <div className="flex items-center justify-between px-4 sm:px-8 lg:px-16 py-3 max-w-screen-xl mx-auto">
 
@@ -593,6 +682,14 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ════════════════════════════════════════════════════════════
+          CINEMATIC CTA — video section before footer
+          ════════════════════════════════════════════════════════════ */}
+      <CinematicCTASection
+        authed={authed}
+        onAction={() => navigate(authed ? "/workspace" : "/signup")}
+      />
 
       <PublicFooter />
     </div>
