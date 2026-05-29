@@ -1,49 +1,77 @@
 /**
  * NXT1 — PublicFooter
  *
- * Tasteful footer for landing + auth. Subtle Jwood Technologies attribution
- * + Made in the USA badge. Theme-aware contrast.
+ * Cinematic dark footer that blends with the space-travel landing page.
+ * Works on both landing (always black) and auth pages (uses nxt-bg).
  */
 import { Link } from "react-router-dom";
 import Brand from "@/components/Brand";
 
+const FONT_HEADING = { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" };
+const FONT_BODY    = { fontFamily: "'Barlow', sans-serif" };
+
 export default function PublicFooter() {
   return (
     <footer
-      className="relative z-10 w-full px-5 sm:px-6 pb-7 pt-2"
+      className="relative w-full"
+      style={{ background: "#000", borderTop: "1px solid rgba(255,255,255,0.06)" }}
       data-testid="public-footer"
     >
-      <div
-        className="mx-auto max-w-[920px] flex flex-col sm:flex-row items-center justify-end gap-3 text-[11px]"
-        style={{ color: "var(--nxt-fg-faint)" }}
-      >
-        <div className="flex items-center gap-4 sm:gap-5">
-          <Link to="/privacy" className="transition-colors" style={{ color: "inherit" }} data-testid="footer-privacy">Privacy</Link>
-          <Link to="/terms"   className="transition-colors" style={{ color: "inherit" }} data-testid="footer-terms">Terms</Link>
-          <Link to="/contact" className="transition-colors" style={{ color: "inherit" }} data-testid="footer-contact">Contact</Link>
-          <Link to="/access"  className="transition-colors" style={{ color: "inherit" }} data-testid="footer-workspace">Workspace</Link>
-        </div>
-      </div>
+      <div className="mx-auto max-w-[1080px] px-5 sm:px-8 pt-10 pb-8">
 
-      {/* Attribution row — NXT1 (colorful) · Jwood Technologies (clean) · USA flag */}
-      <div
-        className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] leading-none"
-        style={{ color: "var(--nxt-fg-faint)" }}
-        data-testid="footer-attribution"
-      >
-        <Brand size="sm" gradient />
-        <span style={{ opacity: 0.55 }}>·</span>
-        <span data-testid="footer-jwood-attribution">
-          A product of <span style={{ color: "var(--nxt-fg-dim)" }}>Jwood Technologies</span>
-        </span>
-        <span style={{ opacity: 0.55 }}>·</span>
-        <span
-          className="inline-flex items-center gap-1.5"
-          data-testid="footer-made-in-usa"
-        >
-          <USFlag />
-          <span>Made in the USA</span>
-        </span>
+        {/* Top row — Brand + nav links */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-3">
+            <Brand size="md" gradient />
+            <span className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "rgba(255,255,255,0.22)", ...FONT_BODY }}>
+              v0.6
+            </span>
+          </div>
+          <div className="flex items-center gap-5 sm:gap-6">
+            {[
+              { to: "/privacy",  label: "Privacy"   },
+              { to: "/terms",    label: "Terms"     },
+              { to: "/contact",  label: "Contact"   },
+              { to: "/access",   label: "Workspace" },
+            ].map(({ to, label }) => (
+              <Link key={to} to={to}
+                className="text-[12px] transition-colors hover:opacity-100"
+                style={{ color: "rgba(255,255,255,0.38)", ...FONT_BODY }}
+                data-testid={`footer-${label.toLowerCase()}`}>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Thin rule */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: "2rem" }} />
+
+        {/* Tagline */}
+        <div className="flex flex-col items-center text-center gap-2 mb-6">
+          <p
+            className="tracking-[0.28em] uppercase text-sm sm:text-base"
+            style={{ ...FONT_HEADING, fontSize: "clamp(1rem, 2.5vw, 1.3rem)", letterSpacing: "0.25em", color: "rgba(255,255,255,0.55)" }}
+          >
+            Discover · Develop · Deliver
+          </p>
+          <p className="text-[11px] sm:text-[12px]" style={{ color: "rgba(255,255,255,0.25)", ...FONT_BODY }}>
+            A product of{" "}
+            <span style={{ color: "rgba(255,255,255,0.45)", fontWeight: 500 }}>Jwood Technologies</span>
+          </p>
+        </div>
+
+        {/* Bottom row — copyright + USA */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.18)", ...FONT_BODY }}>
+            © {new Date().getFullYear()} Jwood Technologies. All rights reserved.
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.22)", ...FONT_BODY }}>
+            <USFlag />
+            Made in the USA
+          </span>
+        </div>
+
       </div>
     </footer>
   );
@@ -51,13 +79,8 @@ export default function PublicFooter() {
 
 function USFlag() {
   return (
-    <svg
-      width="16"
-      height="11"
-      viewBox="0 0 16 11"
-      aria-hidden
-      style={{ borderRadius: 1.5, overflow: "hidden", display: "inline-block", flex: "0 0 auto" }}
-    >
+    <svg width="16" height="11" viewBox="0 0 16 11" aria-hidden
+      style={{ borderRadius: 1.5, overflow: "hidden", display: "inline-block", flex: "0 0 auto" }}>
       <rect width="16" height="11" fill="#B22234" />
       <rect y="1.55" width="16" height="1.55" fill="#FFFFFF" />
       <rect y="4.65" width="16" height="1.55" fill="#FFFFFF" />

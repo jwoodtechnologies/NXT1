@@ -37,7 +37,6 @@ import {
   WorkspaceSettings,
   WorkspaceEditor,
 } from "@/pages/workspace/WorkspaceModules";
-import PublicChatBubble from "@/components/landing/PublicChatBubble";
 import "@/App.css";
 
 function App() {
@@ -46,7 +45,6 @@ function App() {
     <ThemeProvider>
     <BrowserRouter>
       <ThemedToaster />
-      <PublicChatBubble />
       <Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
