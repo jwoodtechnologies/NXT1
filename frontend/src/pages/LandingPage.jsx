@@ -159,8 +159,13 @@ function FadingVideo({ src, className, style }) {
     const v = videoRef.current;
     if (!v) return;
     v.style.opacity = "0";
+    // iOS Safari needs this set imperatively — JSX prop gets stripped
+    v.setAttribute("webkit-playsinline", "true");
 
-    const onCanPlay = () => { fadeTo(1); };
+    const tryPlay = () => v.play().catch(() => {});
+
+    // "playing" fires only when frames are actually rendering — most reliable on iOS
+    const onPlaying = () => { fadeTo(1); };
     const onTime = () => {
       if (!fadingRef.current && v.duration > 0) {
         const rem = v.duration - v.currentTime;
@@ -169,28 +174,40 @@ function FadingVideo({ src, className, style }) {
     };
     const onEnd = () => {
       v.style.opacity = "0";
-      setTimeout(() => { v.currentTime = 0; v.play().catch(() => {}); fadingRef.current = false; fadeTo(1); }, 100);
+      fadingRef.current = false;
+      setTimeout(() => { v.currentTime = 0; tryPlay(); fadeTo(1); }, 100);
     };
 
-    v.addEventListener("canplay",    onCanPlay);
+    v.addEventListener("playing",    onPlaying);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("ended",      onEnd);
 
-    // iOS ignores preload="auto" on cellular — call load()+play() to force it
+    // Force iOS to start downloading (it ignores preload="auto" on cellular)
     v.load();
-    v.play().catch(() => {});
+    tryPlay();
+
+    // Retry play whenever the video scrolls into view (below-fold videos on iOS)
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) tryPlay(); }, { threshold: 0.1 });
+    io.observe(v);
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      v.removeEventListener("canplay",    onCanPlay);
+      v.removeEventListener("playing",    onPlaying);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended",      onEnd);
+      io.disconnect();
     };
   }, [fadeTo]);
 
+  // Merge any incoming transform with translateZ(0) — GPU layer fixes iOS overflow:hidden bug
+  const mergedTransform = style?.transform
+    ? `${style.transform} translateZ(0)`
+    : "translateZ(0)";
+
   return (
-    <video ref={videoRef} src={src} autoPlay muted playsInline webkit-playsinline="true" preload="auto"
-      className={className} style={{ opacity: 0, ...style }} />
+    <video ref={videoRef} src={src} autoPlay muted playsInline preload="auto"
+      className={className}
+      style={{ opacity: 0, ...style, transform: mergedTransform }} />
   );
 }
 
