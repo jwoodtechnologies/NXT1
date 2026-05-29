@@ -11,7 +11,7 @@
  *   - Partners row: shorter copy, smaller provider names on mobile
  *   - DISCOVER · DEVELOP · DELIVER moved to footer
  */
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import { ArrowUpRight, SendHorizontal, Sparkles, Layers, Globe, Smartphone, Puzzle, Bot, Rocket, Cpu } from "lucide-react";
@@ -120,76 +120,20 @@ function useTypedPlaceholder(cycle, { isPaused }) {
 
 // ─── FadingVideo ──────────────────────────────────────────────────────────────
 function FadingVideo({ src, className, style }) {
-  const videoRef  = useRef(null);
-  const rafRef    = useRef(null);
-  const fadingRef = useRef(false);
-
-  const fadeTo = useCallback((target) => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const v = videoRef.current;
-    if (!v) return;
-    const t0 = performance.now(), from = parseFloat(v.style.opacity) || 0;
-    const step = (now) => {
-      const p = Math.min((now - t0) / 500, 1);
-      v.style.opacity = from + (target - from) * p;
-      if (p < 1) rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-  }, []);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.style.opacity = "0";
-    // iOS Safari needs this set imperatively — JSX prop gets stripped
-    v.setAttribute("webkit-playsinline", "true");
-
-    const tryPlay = () => v.play().catch(() => {});
-
-    // "playing" fires only when frames are actually rendering — most reliable on iOS
-    const onPlaying = () => { fadeTo(1); };
-    const onTime = () => {
-      if (!fadingRef.current && v.duration > 0) {
-        const rem = v.duration - v.currentTime;
-        if (rem <= 0.55 && rem > 0) { fadingRef.current = true; fadeTo(0); }
-      }
-    };
-    const onEnd = () => {
-      v.style.opacity = "0";
-      fadingRef.current = false;
-      setTimeout(() => { v.currentTime = 0; tryPlay(); fadeTo(1); }, 100);
-    };
-
-    v.addEventListener("playing",    onPlaying);
-    v.addEventListener("timeupdate", onTime);
-    v.addEventListener("ended",      onEnd);
-
-    // Force iOS to start downloading (it ignores preload="auto" on cellular)
-    v.load();
-    tryPlay();
-
-    // Retry play whenever the video scrolls into view (below-fold videos on iOS)
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) tryPlay(); }, { threshold: 0.1 });
-    io.observe(v);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      v.removeEventListener("playing",    onPlaying);
-      v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("ended",      onEnd);
-      io.disconnect();
-    };
-  }, [fadeTo]);
-
-  // Merge any incoming transform with translateZ(0) — GPU layer fixes iOS overflow:hidden bug
-  const mergedTransform = style?.transform
-    ? `${style.transform} translateZ(0)`
-    : "translateZ(0)";
+    const onPlaying = () => { v.style.opacity = "1"; };
+    v.addEventListener("playing", onPlaying);
+    return () => v.removeEventListener("playing", onPlaying);
+  }, []);
 
   return (
-    <video ref={videoRef} src={src} autoPlay muted playsInline preload="auto"
+    <video ref={videoRef} src={src} autoPlay muted playsInline loop
       className={className}
-      style={{ opacity: 0, ...style, transform: mergedTransform }} />
+      style={{ opacity: 0, transition: "opacity 0.8s ease", ...style }} />
   );
 }
 
@@ -266,7 +210,7 @@ function CinematicCTASection({ authed, onAction }) {
   return (
     <section className="relative overflow-hidden" style={{
       minHeight: "85vh",
-      background: "radial-gradient(ellipse 90% 60% at 50% 50%, #0f0f1a 0%, #050507 60%, #000 100%)",
+      background: "linear-gradient(180deg, #000 0%, #0a1525 30%, #111e38 58%, #070f1e 82%, #000 100%)",
     }}>
       {/* Video — shifted down 17% so the top of the frame is focal point */}
       <FadingVideo
@@ -285,9 +229,19 @@ function CinematicCTASection({ authed, onAction }) {
         style={{ minHeight: "85vh" }}>
 
         {/* Discover · Develop · Deliver */}
-        <div className="liquid-glass rounded-full px-4 py-1.5 mb-8"
-          style={{ ...FONT_BODY, fontSize: "11px", letterSpacing: "0.32em", color: "rgba(255,255,255,0.75)", textTransform: "uppercase" }}>
-          Discover · Develop · Deliver
+        <div className="liquid-glass rounded-full px-4 py-1.5 mb-8">
+          <span style={{
+            ...FONT_BODY,
+            fontSize: "11px",
+            letterSpacing: "0.32em",
+            textTransform: "uppercase",
+            backgroundImage: "linear-gradient(110deg, #5EEAD4 0%, #f0d28a 50%, #ff8a3d 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>
+            Discover · Develop · Deliver
+          </span>
         </div>
 
         {/* Headline */}
@@ -372,13 +326,12 @@ export default function LandingPage() {
           ════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden" style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse 110% 70% at 40% 0%, #12121e 0%, #060608 60%, #000 100%)",
+        background: "linear-gradient(160deg, #0d1f4e 0%, #0a1628 40%, #050c18 75%, #000 100%)",
       }}>
 
         <FadingVideo
           src={HERO_VIDEO}
-          className="absolute left-1/2 top-0 -translate-x-1/2 object-cover object-top z-0"
-          style={{ width: "120%", height: "120%" }}
+          className="absolute inset-0 w-full h-full object-cover object-top z-0"
         />
 
         <div className="relative z-10 flex flex-col" style={{ minHeight: "100vh" }}>
@@ -595,7 +548,7 @@ export default function LandingPage() {
           ════════════════════════════════════════════════════════════ */}
       <section id="build" className="relative overflow-hidden scroll-mt-16" style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse 100% 60% at 60% 100%, #0e1420 0%, #060608 55%, #000 100%)",
+        background: "linear-gradient(220deg, #000 0%, #050c18 30%, #0a1628 65%, #0e1f3a 85%, #050c18 100%)",
       }}>
         <FadingVideo src={CAPS_VIDEO} className="absolute inset-0 w-full h-full object-cover z-0" />
         <span id="flow" className="absolute top-0" style={{ visibility: "hidden" }} />
