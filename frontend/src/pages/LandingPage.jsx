@@ -120,20 +120,23 @@ function useTypedPlaceholder(cycle, { isPaused }) {
 
 // ─── FadingVideo ──────────────────────────────────────────────────────────────
 function FadingVideo({ src, className, style }) {
-  const videoRef = useRef(null);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onPlaying = () => { v.style.opacity = "1"; };
-    v.addEventListener("playing", onPlaying);
-    return () => v.removeEventListener("playing", onPlaying);
-  }, []);
-
+  const [started, setStarted] = useState(false);
+  const onStart = () => setStarted(true);
   return (
-    <video ref={videoRef} src={src} autoPlay muted playsInline loop
+    <video
+      autoPlay muted playsInline loop
       className={className}
-      style={{ opacity: 0, transition: "opacity 0.8s ease", ...style }} />
+      style={{
+        opacity: started ? 1 : 0.01,          // 0.01 not 0 — iOS won't autoplay truly-invisible videos
+        transition: started ? "opacity 0.8s ease" : "none",
+        ...style,
+      }}
+      onCanPlay={onStart}
+      onPlaying={onStart}
+    >
+      {/* <source> with explicit type helps iOS recognise the format */}
+      <source src={src} type="video/mp4" />
+    </video>
   );
 }
 
