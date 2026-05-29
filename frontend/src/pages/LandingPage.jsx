@@ -16,7 +16,6 @@ import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import { ArrowUpRight, Sparkles, Layers, Globe, Smartphone, Puzzle, Bot, Rocket, Cpu } from "lucide-react";
 import Brand from "@/components/Brand";
-import ModelPickerCockpit from "@/components/premium/ModelPickerCockpit";
 import PublicFooter from "@/components/PublicFooter";
 import { isAuthenticated } from "@/lib/auth";
 
@@ -259,7 +258,10 @@ function GlobeIcon() {
 // ─── Cinematic CTA Section — before footer ────────────────────────────────────
 function CinematicCTASection({ authed, onAction }) {
   return (
-    <section className="relative overflow-hidden" style={{ minHeight: "85vh", background: "#000" }}>
+    <section className="relative overflow-hidden" style={{
+      minHeight: "85vh",
+      background: "radial-gradient(ellipse 90% 60% at 50% 50%, #0f0f1a 0%, #050507 60%, #000 100%)",
+    }}>
       {/* Video — shifted down 17% so the top of the frame is focal point */}
       <FadingVideo
         src={CTA_VIDEO}
@@ -325,7 +327,6 @@ export default function LandingPage() {
   const [authed,   setAuthed]   = useState(false);
   const [draft,    setDraft]    = useState("");
   const [mode,     setMode]     = useState("fullstack");
-  const [provider, setProvider] = useState("anthropic");
   const textareaRef = useRef(null);
   const placeholder = useTypedPlaceholder(PLACEHOLDER_CYCLE, { isPaused: !!draft });
 
@@ -364,7 +365,10 @@ export default function LandingPage() {
       {/* ════════════════════════════════════════════════════════════
           HERO  — full viewport, space travel video
           ════════════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden" style={{ minHeight: "100vh", background: "#000" }}>
+      <section className="relative overflow-hidden" style={{
+        minHeight: "100vh",
+        background: "radial-gradient(ellipse 110% 70% at 40% 0%, #12121e 0%, #060608 60%, #000 100%)",
+      }}>
 
         <FadingVideo
           src={HERO_VIDEO}
@@ -531,15 +535,11 @@ export default function LandingPage() {
                 {/* Divider */}
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "0 16px" }} />
 
-                {/* Action row — model picker + Build */}
-                <div className="flex items-center justify-between gap-2 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <ModelPickerCockpit value={provider} onChange={setProvider}
-                      providers={{ emergent: true, anthropic: true }} compact />
-                  </div>
+                {/* Action row — Build button only */}
+                <div className="flex items-center justify-end px-4 py-3">
                   <button type="button" onClick={onBuild} disabled={!draft.trim()}
                     data-testid="landing-build-button"
-                    className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-semibold bg-white text-[#0c0c0e] hover:bg-white/92 transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold bg-white text-[#0c0c0e] hover:bg-white/90 transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed"
                     style={FONT_BODY}>
                     <Sparkles size={13} /> Build
                   </button>
@@ -604,7 +604,10 @@ export default function LandingPage() {
       {/* ════════════════════════════════════════════════════════════
           CAPABILITIES — space video 2
           ════════════════════════════════════════════════════════════ */}
-      <section id="build" className="relative overflow-hidden scroll-mt-16" style={{ minHeight: "100vh", background: "#000" }}>
+      <section id="build" className="relative overflow-hidden scroll-mt-16" style={{
+        minHeight: "100vh",
+        background: "radial-gradient(ellipse 100% 60% at 60% 100%, #0e1420 0%, #060608 55%, #000 100%)",
+      }}>
         <FadingVideo src={CAPS_VIDEO} className="absolute inset-0 w-full h-full object-cover z-0" />
         <span id="flow" className="absolute top-0" style={{ visibility: "hidden" }} />
 

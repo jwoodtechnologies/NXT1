@@ -7,8 +7,9 @@
 import { Link } from "react-router-dom";
 import Brand from "@/components/Brand";
 
-const FONT_HEADING = { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" };
-const FONT_BODY    = { fontFamily: "'Barlow', sans-serif" };
+const FONT_HEADING  = { fontFamily: "'Instrument Serif', serif", fontStyle: "italic" };
+const FONT_BODY     = { fontFamily: "'Barlow', sans-serif" };
+const BRAND_GRADIENT = "linear-gradient(110deg, #5EEAD4 0%, #f0d28a 50%, #ff8a3d 100%)";
 
 export default function PublicFooter() {
   return (
@@ -50,8 +51,13 @@ export default function PublicFooter() {
         {/* Tagline */}
         <div className="flex flex-col items-center text-center gap-2 mb-6">
           <p
-            className="tracking-[0.28em] uppercase text-sm sm:text-base"
-            style={{ ...FONT_HEADING, fontSize: "clamp(1rem, 2.5vw, 1.3rem)", letterSpacing: "0.25em", color: "rgba(255,255,255,0.55)" }}
+            className="tracking-[0.28em] uppercase bg-clip-text text-transparent"
+            style={{
+              ...FONT_HEADING,
+              fontSize: "clamp(1rem, 2.5vw, 1.3rem)",
+              letterSpacing: "0.25em",
+              backgroundImage: BRAND_GRADIENT,
+            }}
           >
             Discover · Develop · Deliver
           </p>
