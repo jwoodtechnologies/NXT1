@@ -159,8 +159,9 @@ function FadingVideo({ src, className, style }) {
     const v = videoRef.current;
     if (!v) return;
     v.style.opacity = "0";
-    const onLoaded = () => { v.style.opacity = "0"; v.play().catch(() => {}); fadeTo(1); };
-    const onTime   = () => {
+
+    const onCanPlay = () => { fadeTo(1); };
+    const onTime = () => {
       if (!fadingRef.current && v.duration > 0) {
         const rem = v.duration - v.currentTime;
         if (rem <= 0.55 && rem > 0) { fadingRef.current = true; fadeTo(0); }
@@ -170,19 +171,25 @@ function FadingVideo({ src, className, style }) {
       v.style.opacity = "0";
       setTimeout(() => { v.currentTime = 0; v.play().catch(() => {}); fadingRef.current = false; fadeTo(1); }, 100);
     };
-    v.addEventListener("loadeddata", onLoaded);
+
+    v.addEventListener("canplay",    onCanPlay);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("ended",      onEnd);
+
+    // iOS ignores preload="auto" on cellular — call load()+play() to force it
+    v.load();
+    v.play().catch(() => {});
+
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      v.removeEventListener("loadeddata", onLoaded);
+      v.removeEventListener("canplay",    onCanPlay);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended",      onEnd);
     };
   }, [fadeTo]);
 
   return (
-    <video ref={videoRef} src={src} autoPlay muted playsInline preload="auto"
+    <video ref={videoRef} src={src} autoPlay muted playsInline webkit-playsinline="true" preload="auto"
       className={className} style={{ opacity: 0, ...style }} />
   );
 }
@@ -260,7 +267,7 @@ function CinematicCTASection({ authed, onAction }) {
   return (
     <section className="relative overflow-hidden" style={{
       minHeight: "85vh",
-      background: "radial-gradient(ellipse 100% 65% at 50% 50%, #0d1b35 0%, #070f1e 45%, #030609 80%, #000 100%)",
+      background: "radial-gradient(ellipse 90% 60% at 50% 50%, #0f0f1a 0%, #050507 60%, #000 100%)",
     }}>
       {/* Video — shifted down 17% so the top of the frame is focal point */}
       <FadingVideo
@@ -367,7 +374,7 @@ export default function LandingPage() {
           ════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden" style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse 120% 80% at 40% 0%, #0d1b3e 0%, #07111e 50%, #010408 90%, #000 100%)",
+        background: "radial-gradient(ellipse 110% 70% at 40% 0%, #12121e 0%, #060608 60%, #000 100%)",
       }}>
 
         <FadingVideo
@@ -606,7 +613,7 @@ export default function LandingPage() {
           ════════════════════════════════════════════════════════════ */}
       <section id="build" className="relative overflow-hidden scroll-mt-16" style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse 110% 70% at 65% 100%, #0a1930 0%, #060d1a 50%, #020508 85%, #000 100%)",
+        background: "radial-gradient(ellipse 100% 60% at 60% 100%, #0e1420 0%, #060608 55%, #000 100%)",
       }}>
         <FadingVideo src={CAPS_VIDEO} className="absolute inset-0 w-full h-full object-cover z-0" />
         <span id="flow" className="absolute top-0" style={{ visibility: "hidden" }} />
